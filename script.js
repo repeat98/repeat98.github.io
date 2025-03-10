@@ -318,6 +318,17 @@ async function initializeFilters() {
   });
 }
 
+document.getElementById("mobile-filters-toggle").addEventListener("click", function() {
+  const extraFilters = document.querySelector(".mobile-extra-filters-wrapper");
+  if (extraFilters.style.display === "block") {
+    extraFilters.style.display = "none";
+    this.innerHTML = '<i class="bi bi-chevron-down"></i>';
+  } else {
+    extraFilters.style.display = "block";
+    this.innerHTML = '<i class="bi bi-chevron-up"></i>';
+  }
+});
+
 // ------------------ Render Table ------------------
 function renderTable() {
   const isMobile = window.innerWidth <= 768;
