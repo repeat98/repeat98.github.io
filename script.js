@@ -17,11 +17,8 @@ let activeTab = "search";
 // Global personalized toggle flag (false by default)
 let personalizedEnabled = false;
 
-// Default: Sort by rating_coeff descending
-let sortConfig = {
-  key: "rating_coeff",
-  order: "desc"
-};
+// Default: Sort by title ascending (changed from rating_coeff)
+let sortConfig = { key: "title", order: "asc" };
 
 let youtubeApiReady = false;
 
@@ -204,11 +201,6 @@ async function fetchShuffleReleases() {
 }
 
 // ------------------ Personalized Recommendations ------------------
-// Compute a score for each release based on:
-// - Whether it is bookmarked (adds bonus)
-// - Whether it has been interacted with (adds bonus)
-// - Matches with genres and styles from previously interacted/bookmarked releases (adds bonus)
-// - Its average rating and rating count
 async function loadPersonalizedShuffleData() {
   const { data: candidateData } = await fetchShuffleReleases();
 
@@ -216,11 +208,9 @@ async function loadPersonalizedShuffleData() {
   const interactedReleasesIds = JSON.parse(localStorage.getItem("interactedReleases")) || [];
   const bookmarked = getBookmarkedReleases();
 
-  // Aggregate preferred genres and styles from bookmarks and interacted releases (for simplicity, we combine both)
   let preferredGenres = {};
   let preferredStyles = {};
 
-  // Assume bookmarked releases contain genre and style metadata
   bookmarked.forEach(release => {
     if (release.genre) {
       release.genre.split(",").forEach(g => {
@@ -236,33 +226,24 @@ async function loadPersonalizedShuffleData() {
     }
   });
 
-  // Optionally, you could also retrieve additional metadata from interacted releases if available.
-  // Here, we use the candidate set for scoring.
   candidateData.forEach(release => {
     let score = 0;
-    // Bonus if bookmarked
     if (bookmarked.some(r => r.id === release.id)) score += 2;
-    // Bonus if interacted
     if (interactedReleasesIds.includes(release.id)) score += 1;
-    // Base score from average rating (if available)
     if (release.average_rating) score += parseFloat(release.average_rating);
-    // Bonus based on rating count (normalized)
     if (release.rating_count) score += Math.log(release.rating_count + 1);
-    // Bonus if release's genres match user preferences
     if (release.genre) {
       release.genre.split(",").forEach(g => {
         const genre = g.trim();
         if (preferredGenres[genre]) score += preferredGenres[genre] * 0.5;
       });
     }
-    // Bonus if release's styles match user preferences
     if (release.style) {
       release.style.split(",").forEach(s => {
         const style = s.trim();
         if (preferredStyles[style]) score += preferredStyles[style] * 0.5;
       });
     }
-    // Incorporate search relevance if a search query exists
     const currentSearch = document.getElementById("searchInput").value.trim().toLowerCase();
     if (currentSearch && release.title.toLowerCase().includes(currentSearch)) {
       score += 1;
@@ -270,7 +251,6 @@ async function loadPersonalizedShuffleData() {
     release.personalizedScore = score;
   });
 
-  // Sort candidate releases by personalizedScore descending and take top 5
   const sorted = candidateData.sort((a, b) => b.personalizedScore - a.personalizedScore);
   filteredData = sorted.slice(0, 5);
   totalRecords = filteredData.length;
@@ -760,6 +740,7 @@ document.querySelectorAll("th[data-sort]").forEach((header) => {
         sortConfig.order = "asc";
       }
     }
+    localStorage.setItem("sortConfig", JSON.stringify(sortConfig));
     loadData(currentPage);
     updateSortIndicators();
   });
@@ -867,31 +848,42 @@ function updateFilterButtons() {
   } else if (activeTab === "shuffle") {
     document.querySelector(".filter-btn").style.display = "none";
     document.querySelector(".shuffle-btn").style.display = "inline-block";
-    // Show the personalized toggle only in shuffle mode
     document.getElementById("personalized-toggle-container").style.display = "flex";
   }
 }
 
-// ------------------ Export / Import Bookmarks ------------------
-function exportBookmarks() {
-  const bookmarks = getBookmarkedReleases();
-  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(bookmarks, null, 2));
+// ------------------ Export / Import User Data ------------------
+function exportUserData() {
+  const userData = {
+    bookmarkedReleases: JSON.parse(localStorage.getItem("bookmarkedReleases") || "[]"),
+    interactedReleases: JSON.parse(localStorage.getItem("interactedReleases") || "[]"),
+    tableColumnWidths: JSON.parse(localStorage.getItem("tableColumnWidths") || "{}"),
+    darkModeEnabled: localStorage.getItem("darkModeEnabled") || "true",
+    sortConfig: JSON.parse(localStorage.getItem("sortConfig") || '{"key":"title","order":"asc"}')
+  };
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(userData, null, 2));
   const dlAnchorElem = document.createElement("a");
   dlAnchorElem.setAttribute("href", dataStr);
-  dlAnchorElem.setAttribute("download", "bookmarks.json");
+  dlAnchorElem.setAttribute("download", "userData.json");
   dlAnchorElem.click();
 }
 
-function importBookmarks(file) {
+function importUserData(file) {
   const reader = new FileReader();
   reader.onload = function(e) {
     try {
       const imported = JSON.parse(e.target.result);
-      if (Array.isArray(imported)) {
-        saveBookmarkedReleases(imported);
+      if (imported && typeof imported === 'object') {
+        if(imported.bookmarkedReleases) localStorage.setItem("bookmarkedReleases", JSON.stringify(imported.bookmarkedReleases));
+        if(imported.interactedReleases) localStorage.setItem("interactedReleases", JSON.stringify(imported.interactedReleases));
+        if(imported.tableColumnWidths) localStorage.setItem("tableColumnWidths", JSON.stringify(imported.tableColumnWidths));
+        if(imported.darkModeEnabled) localStorage.setItem("darkModeEnabled", imported.darkModeEnabled);
+        if(imported.sortConfig) localStorage.setItem("sortConfig", JSON.stringify(imported.sortConfig));
         if (activeTab === "bookmark") {
           loadBookmarks(currentPage);
         }
+        applySavedColumnWidths();
+        updateSortIndicators();
       } else {
         alert("Invalid file format.");
       }
@@ -904,6 +896,9 @@ function importBookmarks(file) {
 
 // ------------------ DOMContentLoaded ------------------
 document.addEventListener("DOMContentLoaded", async () => {
+  // Load sort configuration from localStorage or set default to title asc
+  sortConfig = JSON.parse(localStorage.getItem("sortConfig") || '{"key":"title","order":"asc"}');
+
   const navBookmark = document.getElementById("tab-bookmark");
   if (navBookmark) {
     navBookmark.innerHTML = '<i class="bi bi-bookmark"></i>';
@@ -1018,14 +1013,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       loadData(1);
     }
   });
-  document.getElementById("export-btn").addEventListener("click", exportBookmarks);
+  document.getElementById("export-btn").addEventListener("click", exportUserData);
   document.getElementById("import-btn").addEventListener("click", () => {
     document.getElementById("import-file").click();
   });
   document.getElementById("import-file").addEventListener("change", (e) => {
     const file = e.target.files[0];
     if (file) {
-      importBookmarks(file);
+      importUserData(file);
     }
   });
 });
