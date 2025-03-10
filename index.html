@@ -7,7 +7,10 @@
     <title>Gruuvs</title>
 
     <!-- Google Analytics 4 (GA4) Global Site Tag -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-WW50KM0VFQ"></script>
+    <script
+      async
+      src="https://www.googletagmanager.com/gtag/js?id=G-WW50KM0VFQ"
+    ></script>
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag() {
@@ -17,6 +20,19 @@
       gtag("config", "G-WW50KM0VFQ");
     </script>
     <!-- End GA4 -->
+
+    <meta property="og:title" content="Gruuvs" />
+    <meta
+      property="og:description"
+      content="Gruuvs – a new interface for Discogs"
+    />
+    <meta property="og:image" content="https://yourdomain/path/to/image.jpg" />
+    <meta
+      property="og:url"
+      content="https://repeat98.github.io/"
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
 
     <!-- Google Fonts (Figtree) -->
     <link
@@ -48,9 +64,7 @@
       <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container MainContainer">
           <div class="d-flex justify-content-between align-items-center w-100">
-            <a class="navbar-brand" href="#">
-              GRUUVS
-            </a>
+            <a class="navbar-brand" href="#"> GRUUVS </a>
             <div class="right-toggle-group d-flex align-items-center">
               <div class="tab-toggle d-flex align-items-center">
                 <!-- The search tab: input grows left while icon stays on the right -->
@@ -128,7 +142,9 @@
               </div>
               <!-- Rating range -->
               <div class="filter-group">
-                <label for="rating_range" class="filter-label">Rating range</label>
+                <label for="rating_range" class="filter-label"
+                  >Rating range</label
+                >
                 <input
                   type="text"
                   id="rating_range"
@@ -139,7 +155,9 @@
               </div>
               <!-- Rating Count range -->
               <div class="filter-group">
-                <label for="rating_count_range" class="filter-label">Rating Count range</label>
+                <label for="rating_count_range" class="filter-label"
+                  >Rating Count range</label
+                >
                 <input
                   type="text"
                   id="rating_count_range"
@@ -150,7 +168,9 @@
               </div>
               <!-- Price range -->
               <div class="filter-group">
-                <label for="price_range" class="filter-label">Price range</label>
+                <label for="price_range" class="filter-label"
+                  >Price range</label
+                >
                 <input
                   type="text"
                   id="price_range"
@@ -179,7 +199,11 @@
       </div>
 
       <!-- Bookmark Actions: Export & Import (only visible on bookmark tab) -->
-      <div class="container MainContainer" id="bookmark-actions" style="display:none;">
+      <div
+        class="container MainContainer"
+        id="bookmark-actions"
+        style="display: none"
+      >
         <div class="d-flex justify-content-end gap-2 mb-2">
           <button id="export-btn" class="btn btn-primary">
             <i class="bi bi-download"></i> Export Bookmarks
@@ -188,14 +212,22 @@
             <i class="bi bi-upload"></i> Import Bookmarks
           </button>
           <!-- Hidden file input for importing -->
-          <input type="file" id="import-file" accept=".json" style="display:none;" />
+          <input
+            type="file"
+            id="import-file"
+            accept=".json"
+            style="display: none"
+          />
         </div>
       </div>
 
       <!-- Main Content container for table and pagination -->
       <div class="container MainContainer">
         <!-- Results Count -->
-        <div class="d-flex justify-content-between align-items-center mb-2" style="margin-top: 1rem;">
+        <div
+          class="d-flex justify-content-between align-items-center mb-2"
+          style="margin-top: 1rem"
+        >
           <div id="results-count" class="fw-semibold"></div>
         </div>
 
@@ -315,7 +347,7 @@
                   <div class="resizer"></div>
                 </th>
                 <!-- Bookmark header placed immediately to the left of the preview column -->
-                <th style="width: 40px;"></th>
+                <th style="width: 40px"></th>
                 <th
                   scope="col"
                   class="text-center"
@@ -337,7 +369,9 @@
         <div class="pagination-container">
           <ul class="pagination" id="pagination">
             <li class="page-item disabled">
-              <a class="page-link" href="#" tabindex="-1" aria-disabled="true">Prev</a>
+              <a class="page-link" href="#" tabindex="-1" aria-disabled="true"
+                >Prev</a
+              >
             </li>
             <li class="page-item active" aria-current="page">
               <a class="page-link" href="#">1</a>
