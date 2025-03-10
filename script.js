@@ -4,14 +4,14 @@ const supabaseKey =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9naGRybXRvcnBlcWFld3R0Y2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDExNjc4OTksImV4cCI6MjA1Njc0Mzg5OX0.HW5aD19Hy__kpOLp5JHi8HXLzl7D6_Tu4UNyB3mNAHs";
 const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
-// Global pagination and sorting config
+// Global pagination and sorting config for Search and Shuffle
 let filteredData = [];
 let totalRecords = 0;
 let currentPage = 1;
 const pageSize = 10;
 let totalPages = 1;
 
-// Global active tab state: "search" or "shuffle"
+// Global active tab state: "search", "shuffle", or "bookmark"
 let activeTab = "search";
 
 // Default: Sort by rating_coeff descending
@@ -21,6 +21,37 @@ let sortConfig = {
 };
 
 let youtubeApiReady = false;
+
+// ------------------ Bookmark Data ------------------
+// Bookmarks are stored in localStorage as a JSON array of release objects
+function getBookmarkedReleases() {
+  return JSON.parse(localStorage.getItem("bookmarkedReleases") || "[]");
+}
+
+function saveBookmarkedReleases(bookmarks) {
+  localStorage.setItem("bookmarkedReleases", JSON.stringify(bookmarks));
+}
+
+function isBookmarked(id) {
+  const bookmarks = getBookmarkedReleases();
+  return bookmarks.some(release => release.id === id);
+}
+
+function toggleBookmark(release) {
+  let bookmarks = getBookmarkedReleases();
+  if (isBookmarked(release.id)) {
+    bookmarks = bookmarks.filter(r => r.id !== release.id);
+  } else {
+    bookmarks.push(release);
+  }
+  saveBookmarkedReleases(bookmarks);
+  // If we are in bookmark view, reload the bookmarks
+  if (activeTab === "bookmark") {
+    loadBookmarks(currentPage);
+  }
+  // Re-render the current table to update the bookmark icons
+  renderTable();
+}
 
 // ------------------ Helper Functions ------------------
 function parseYearRange() {
@@ -121,6 +152,7 @@ async function loadData(page = 1) {
   currentPage = page;
   renderTable();
   renderPagination();
+  // Show pagination for Search (and Bookmark) tabs
   document.getElementById("pagination").style.display = "block";
 }
 
@@ -224,7 +256,20 @@ async function loadShuffleData() {
   totalRecords = count;
   currentPage = 1;
   renderTable();
+  // Remove pagination on shuffle tab
   document.getElementById("pagination").style.display = "none";
+}
+
+// ------------------ Load Bookmarked Releases ------------------
+function loadBookmarks(page = 1) {
+  const bookmarks = getBookmarkedReleases();
+  totalRecords = bookmarks.length;
+  totalPages = Math.ceil(totalRecords / pageSize) || 1;
+  currentPage = page;
+  filteredData = bookmarks.slice((page - 1) * pageSize, page * pageSize);
+  renderTable();
+  renderPagination();
+  document.getElementById("pagination").style.display = "block";
 }
 
 // ------------------ Initialize Filters Dropdowns ------------------
@@ -281,7 +326,7 @@ function renderTable() {
   document.getElementById("results-count").textContent = `Showing ${totalRecords} result(s)`;
 
   if (filteredData.length === 0) {
-    tbody.innerHTML = `<tr><td class="no-results">
+    tbody.innerHTML = `<tr><td class="no-results" colspan="12">
           <i class="bi bi-exclamation-triangle-fill"></i>
           <p>No results found.</p>
         </td></tr>`;
@@ -298,11 +343,26 @@ function renderTable() {
       tr.classList.add("greyed-out");
     }
 
+    // Create bookmark cell (for both desktop and mobile)
+    const tdBookmark = document.createElement("td");
+    tdBookmark.className = "text-center";
+    const bookmarkIcon = document.createElement("i");
+    // Set a smaller icon size
+    bookmarkIcon.style.fontSize = "1rem";
+    bookmarkIcon.className = "bi bookmark-star " + (isBookmarked(release.id) ? "bi-bookmark-fill bookmarked" : "bi-bookmark");
+    bookmarkIcon.title = "Toggle Bookmark";
+    bookmarkIcon.addEventListener("click", () => {
+      toggleBookmark(release);
+    });
+    tdBookmark.appendChild(bookmarkIcon);
+
     if (isMobile) {
-      // Mobile: render one single cell containing preview, title, and rating in vertical layout.
+      // Mobile: render one single cell containing preview, title, rating and bookmark icon at bottom-right.
       const tdMobile = document.createElement("td");
       tdMobile.className = "mobile-cell";
-
+      // Set mobile cell to relative so absolute positioning works.
+      tdMobile.style.position = "relative";
+      
       // Preview
       let previewContent = "";
       if (release.youtube_links) {
@@ -383,12 +443,23 @@ function renderTable() {
         ratingDiv.innerHTML = `<div class="text-muted">No rating</div>`;
       }
 
-      tdMobile.innerHTML = previewContent;
+      tdMobile.innerHTML += previewContent;
       tdMobile.appendChild(titleDiv);
       tdMobile.appendChild(ratingDiv);
+      
+      // Append bookmark icon in a container positioned at bottom-right
+      const mobileBookmarkContainer = document.createElement("div");
+      mobileBookmarkContainer.className = "mobile-bookmark";
+      mobileBookmarkContainer.style.position = "absolute";
+      mobileBookmarkContainer.style.bottom = "8px";
+      mobileBookmarkContainer.style.right = "8px";
+      mobileBookmarkContainer.appendChild(tdBookmark);
+      tdMobile.appendChild(mobileBookmarkContainer);
+      
       tr.appendChild(tdMobile);
     } else {
-      // Desktop: render full row (unchanged)
+      // Desktop: render full row with separate cells.
+      // Title
       const tdTitle = document.createElement("td");
       const titleDiv = document.createElement("div");
       titleDiv.className = "d-flex align-items-center";
@@ -432,15 +503,18 @@ function renderTable() {
       tdTitle.appendChild(titleDiv);
       tr.appendChild(tdTitle);
 
+      // Label
       const tdLabel = document.createElement("td");
       tdLabel.textContent = release.label || "Unknown";
       tr.appendChild(tdLabel);
 
+      // Year
       const tdYear = document.createElement("td");
       tdYear.className = "text-center";
       tdYear.textContent = release.year || "N/A";
       tr.appendChild(tdYear);
 
+      // Genre/Style
       const tdGenreStyle = document.createElement("td");
       if (release.genre) {
         release.genre.split(",").forEach((g) => {
@@ -460,6 +534,7 @@ function renderTable() {
       }
       tr.appendChild(tdGenreStyle);
 
+      // User Rating
       const tdRating = document.createElement("td");
       tdRating.className = "text-center";
       if (
@@ -476,6 +551,7 @@ function renderTable() {
       }
       tr.appendChild(tdRating);
 
+      // Rarity
       const tdRarity = document.createElement("td");
       tdRarity.className = "text-center";
       tdRarity.textContent = release.demand_coeff
@@ -483,6 +559,7 @@ function renderTable() {
         : "0.00";
       tr.appendChild(tdRarity);
 
+      // Gem
       const tdGem = document.createElement("td");
       tdGem.className = "text-center";
       tdGem.textContent = release.gem_value
@@ -490,16 +567,19 @@ function renderTable() {
         : "0.00";
       tr.appendChild(tdGem);
 
+      // Have
       const tdHave = document.createElement("td");
       tdHave.className = "text-center";
       tdHave.textContent = release.have || 0;
       tr.appendChild(tdHave);
 
+      // Want
       const tdWant = document.createElement("td");
       tdWant.className = "text-center";
       tdWant.textContent = release.want || 0;
       tr.appendChild(tdWant);
 
+      // Price
       const tdPrice = document.createElement("td");
       tdPrice.className = "text-center";
       tdPrice.textContent =
@@ -508,6 +588,10 @@ function renderTable() {
           : "N/A";
       tr.appendChild(tdPrice);
 
+      // Insert bookmark column between Price and Preview
+      tr.appendChild(tdBookmark);
+
+      // Preview
       const tdPreview = document.createElement("td");
       tdPreview.className = "text-center";
       if (release.youtube_links) {
@@ -616,7 +700,13 @@ function renderPagination() {
   prevLink.innerHTML = `<i class="bi bi-chevron-left"></i> Prev`;
   prevLink.addEventListener("click", (e) => {
     e.preventDefault();
-    if (currentPage > 1) loadData(currentPage - 1);
+    if (currentPage > 1) {
+      if(activeTab === "bookmark"){
+        loadBookmarks(currentPage - 1);
+      } else {
+        loadData(currentPage - 1);
+      }
+    }
   });
   prevLi.appendChild(prevLink);
   pag.appendChild(prevLi);
@@ -632,7 +722,11 @@ function renderPagination() {
     pageLink.textContent = p;
     pageLink.addEventListener("click", (e) => {
       e.preventDefault();
-      loadData(p);
+      if(activeTab === "bookmark"){
+        loadBookmarks(p);
+      } else {
+        loadData(p);
+      }
     });
     pageLi.appendChild(pageLink);
     pag.appendChild(pageLi);
@@ -646,7 +740,13 @@ function renderPagination() {
   nextLink.innerHTML = `Next <i class="bi bi-chevron-right"></i>`;
   nextLink.addEventListener("click", (e) => {
     e.preventDefault();
-    if (currentPage < totalPages) loadData(currentPage + 1);
+    if (currentPage < totalPages) {
+      if(activeTab === "bookmark"){
+        loadBookmarks(currentPage + 1);
+      } else {
+        loadData(currentPage + 1);
+      }
+    }
   });
   nextLi.appendChild(nextLink);
   pag.appendChild(nextLi);
@@ -826,56 +926,69 @@ function trackReleaseLinkClick(release) {
 
 // ------------------ Tab Toggle and Filter Button Update ------------------
 function updateFilterButtons() {
+  // For Bookmark tab, hide filter form and show export/import actions
+  if (activeTab === "bookmark") {
+    document.getElementById("filter-wrapper").style.display = "none";
+    document.getElementById("bookmark-actions").style.display = "block";
+  } else {
+    document.getElementById("filter-wrapper").style.display = "block";
+    document.getElementById("bookmark-actions").style.display = "none";
+  }
+
   if (activeTab === "search") {
     document.querySelector(".filter-btn").style.display = "inline-block";
     document.querySelector(".shuffle-btn").style.display = "none";
-  } else {
+  } else if (activeTab === "shuffle") {
     document.querySelector(".filter-btn").style.display = "none";
     document.querySelector(".shuffle-btn").style.display = "inline-block";
   }
 }
 
-// ------------------ Mobile UI: Toggle Extra Filters ------------------
-document
-  .getElementById("mobile-filters-toggle")
-  .addEventListener("click", () => {
-    const extraFilters = document.querySelector(".mobile-extra-filters-wrapper");
-    const toggleBtn = document.getElementById("mobile-filters-toggle");
-    if (extraFilters.style.display === "block") {
-      extraFilters.style.display = "none";
-      toggleBtn.innerHTML = '<i class="bi bi-chevron-down"></i>';
-    } else {
-      extraFilters.style.display = "block";
-      toggleBtn.innerHTML = '<i class="bi bi-chevron-up"></i>';
-    }
-  });
+// ------------------ Export / Import Bookmarks ------------------
+function exportBookmarks() {
+  const bookmarks = getBookmarkedReleases();
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(bookmarks, null, 2));
+  const dlAnchorElem = document.createElement("a");
+  dlAnchorElem.setAttribute("href", dataStr);
+  dlAnchorElem.setAttribute("download", "bookmarks.json");
+  dlAnchorElem.click();
+}
 
-// ------------------ Mobile UI: Sort Dropdown ------------------
-document
-  .getElementById("mobile-sort-select")
-  .addEventListener("change", function () {
-    const value = this.value;
-    if (!value) return;
-    let parts = value.split("_");
-    let key = parts[0];
-    let order = parts[1];
-    if (key === "rating") key = "rating_coeff";
-    else if (key === "rarity") key = "demand_coeff";
-    else if (key === "gem") key = "gem_value";
-    else if (key === "have") key = "have";
-    else if (key === "want") key = "want";
-    else if (key === "price") key = "lowest_price";
-    sortConfig = { key: key, order: order };
-    loadData(1);
-  });
+function importBookmarks(file) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const imported = JSON.parse(e.target.result);
+      if (Array.isArray(imported)) {
+        saveBookmarkedReleases(imported);
+        if (activeTab === "bookmark") {
+          loadBookmarks(currentPage);
+        }
+      } else {
+        alert("Invalid file format.");
+      }
+    } catch (err) {
+      alert("Error reading file.");
+    }
+  };
+  reader.readAsText(file);
+}
 
 // ------------------ DOMContentLoaded ------------------
 document.addEventListener("DOMContentLoaded", async () => {
+  // Update navbar bookmark icon to use bookmark instead of star
+  const navBookmark = document.getElementById("tab-bookmark");
+  if (navBookmark) {
+    navBookmark.innerHTML = '<i class="bi bi-bookmark"></i>';
+  }
+
   await initializeFilters();
   if (activeTab === "search") {
     loadData(1);
-  } else {
+  } else if (activeTab === "shuffle") {
     loadShuffleData();
+  } else if (activeTab === "bookmark") {
+    loadBookmarks(1);
   }
   applySavedColumnWidths();
   makeTableResizable();
@@ -887,7 +1000,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     trackFilterApplied();
     if (activeTab === "search") {
       loadData(1);
-    } else {
+    } else if (activeTab === "shuffle") {
       loadShuffleData();
     }
   });
@@ -896,7 +1009,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     trackFilterApplied();
     if (activeTab === "search") {
       loadData(1);
-    } else {
+    } else if (activeTab === "shuffle") {
       loadShuffleData();
     }
   });
@@ -904,7 +1017,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     trackFilterApplied();
     if (activeTab === "search") {
       loadData(1);
-    } else {
+    } else if (activeTab === "shuffle") {
       loadShuffleData();
     }
   });
@@ -933,6 +1046,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     activeTab = "search";
     document.getElementById("tab-search").classList.add("active");
     document.getElementById("tab-shuffle").classList.remove("active");
+    document.getElementById("tab-bookmark").classList.remove("active");
     updateFilterButtons();
     loadData(1);
     document.getElementById("searchInput").focus();
@@ -943,8 +1057,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     activeTab = "shuffle";
     document.getElementById("tab-shuffle").classList.add("active");
     document.getElementById("tab-search").classList.remove("active");
+    document.getElementById("tab-bookmark").classList.remove("active");
     updateFilterButtons();
     loadShuffleData();
+  });
+
+  document.getElementById("tab-bookmark").addEventListener("click", (e) => {
+    e.preventDefault();
+    activeTab = "bookmark";
+    document.getElementById("tab-bookmark").classList.add("active");
+    document.getElementById("tab-search").classList.remove("active");
+    document.getElementById("tab-shuffle").classList.remove("active");
+    updateFilterButtons();
+    loadBookmarks(1);
   });
 
   document.getElementById("shuffle-btn").addEventListener("click", (e) => {
@@ -952,6 +1077,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     activeTab = "shuffle";
     document.getElementById("tab-shuffle").classList.add("active");
     document.getElementById("tab-search").classList.remove("active");
+    document.getElementById("tab-bookmark").classList.remove("active");
     trackFilterApplied();
     loadShuffleData();
   });
@@ -963,9 +1089,22 @@ document.addEventListener("DOMContentLoaded", async () => {
         activeTab = "search";
         document.getElementById("tab-search").classList.add("active");
         document.getElementById("tab-shuffle").classList.remove("active");
+        document.getElementById("tab-bookmark").classList.remove("active");
         updateFilterButtons();
       }
       loadData(1);
+    }
+  });
+
+  // Export and Import buttons for bookmarks
+  document.getElementById("export-btn").addEventListener("click", exportBookmarks);
+  document.getElementById("import-btn").addEventListener("click", () => {
+    document.getElementById("import-file").click();
+  });
+  document.getElementById("import-file").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      importBookmarks(file);
     }
   });
 });

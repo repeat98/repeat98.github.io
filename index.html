@@ -53,13 +53,17 @@
             </a>
             <div class="right-toggle-group d-flex align-items-center">
               <div class="tab-toggle d-flex align-items-center">
-                <!-- The search tab: input expands left when active -->
+                <!-- The search tab: input grows left while icon stays on the right -->
                 <span id="tab-search" class="tab-icon active">
                   <input type="text" id="searchInput" placeholder="Search..." />
                   <i class="bi bi-search"></i>
                 </span>
                 <span id="tab-shuffle" class="tab-icon">
                   <i class="bi bi-shuffle"></i>
+                </span>
+                <!-- New Bookmark tab -->
+                <span id="tab-bookmark" class="tab-icon">
+                  <i class="bi bi-star"></i>
                 </span>
               </div>
               <div class="dark-mode-toggle">
@@ -73,8 +77,8 @@
         </div>
       </nav>
 
-      <!-- Filter form full-width wrapper -->
-      <div class="filter-form-wrapper">
+      <!-- Filter form full-width wrapper (hidden in bookmark tab) -->
+      <div class="filter-form-wrapper" id="filter-wrapper">
         <div class="container MainContainer">
           <form id="filter-form" class="FilterContainer">
             <!-- Genre -->
@@ -135,9 +139,7 @@
               </div>
               <!-- Rating Count range -->
               <div class="filter-group">
-                <label for="rating_count_range" class="filter-label"
-                  >Rating Count range</label
-                >
+                <label for="rating_count_range" class="filter-label">Rating Count range</label>
                 <input
                   type="text"
                   id="rating_count_range"
@@ -176,24 +178,17 @@
         </div>
       </div>
 
-      <!-- Mobile sort dropdown (visible only on mobile) -->
-      <div id="mobile-sort-dropdown" class="mobile-sort-dropdown">
-        <div class="container MainContainer">
-          <select id="mobile-sort-select" class="filter-select">
-            <option value="">Sort By</option>
-            <option value="rating_asc">Rating Ascending</option>
-            <option value="rating_desc">Rating Descending</option>
-            <option value="rarity_asc">Rarity Ascending</option>
-            <option value="rarity_desc">Rarity Descending</option>
-            <option value="gem_asc">Gem Ascending</option>
-            <option value="gem_desc">Gem Descending</option>
-            <option value="have_asc">Have Ascending</option>
-            <option value="have_desc">Have Descending</option>
-            <option value="want_asc">Want Ascending</option>
-            <option value="want_desc">Want Descending</option>
-            <option value="price_asc">Price Ascending</option>
-            <option value="price_desc">Price Descending</option>
-          </select>
+      <!-- Bookmark Actions: Export & Import (only visible on bookmark tab) -->
+      <div class="container MainContainer" id="bookmark-actions" style="display:none;">
+        <div class="d-flex justify-content-end gap-2 mb-2">
+          <button id="export-btn" class="btn btn-primary">
+            <i class="bi bi-download"></i> Export Bookmarks
+          </button>
+          <button id="import-btn" class="btn btn-secondary">
+            <i class="bi bi-upload"></i> Import Bookmarks
+          </button>
+          <!-- Hidden file input for importing -->
+          <input type="file" id="import-file" accept=".json" style="display:none;" />
         </div>
       </div>
 
@@ -209,6 +204,7 @@
           <table class="table table-hover table-bordered mb-0">
             <thead>
               <tr>
+                <!-- Table header order: Title, Label, Year, Genre/Style, User Rating, Rarity, Gem, Have, Want, Price, Bookmark, Preview -->
                 <th
                   scope="col"
                   data-column="Title"
@@ -318,6 +314,8 @@
                   Price
                   <div class="resizer"></div>
                 </th>
+                <!-- Bookmark header placed immediately to the left of the preview column -->
+                <th style="width: 40px;"></th>
                 <th
                   scope="col"
                   class="text-center"
@@ -335,7 +333,7 @@
           </table>
         </div>
 
-        <!-- Pagination -->
+        <!-- Pagination (only visible for Search and Bookmark tabs) -->
         <div class="pagination-container">
           <ul class="pagination" id="pagination">
             <li class="page-item disabled">

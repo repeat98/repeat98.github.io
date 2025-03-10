@@ -66,7 +66,7 @@
   justify-content: center;
   height: 40px;
   line-height: 1;
-  padding: 0 12px;  /* horizontal padding for text */
+  padding: 0 12px;
 }
 
 /* -----------------------
@@ -86,7 +86,7 @@
   --badge-style-text: #4a90e2;
   --input-bg: #ffffff;
   --input-border: #d5d7da;
-  --input-focus: #E7FF6E; /* Updated focus color */
+  --input-focus: #E7FF6E;
   --btn-primary-bg: #1a202c;
   --btn-primary-hover-bg: #2a2a2a;
   --transition-speed: 0.3s;
@@ -193,7 +193,6 @@ body.dark-mode .sun-icon {
   border-radius: 0;
   overflow: hidden;
   display: flex;
-  /* Default for mobile: stack vertically */
   flex-direction: column;
   align-items: stretch;
   gap: 16px;
@@ -204,7 +203,7 @@ body.dark-mode .sun-icon {
   flex: 1;
   min-width: 150px;
   display: flex;
-  flex-direction: column; /* label above input always */
+  flex-direction: column;
 }
 .filter-label {
   font-size: 12px;
@@ -225,13 +224,11 @@ body.dark-mode .sun-icon {
   transition: border-color var(--transition-speed), box-shadow var(--transition-speed);
 }
 
-/* Lower opacity for placeholder text */
 .filter-input::placeholder {
   color: var(--text-color);
   opacity: 0.5;
 }
 
-/* Use updated focus color */
 .filter-input:focus,
 .filter-select:focus {
   outline: none;
@@ -411,28 +408,36 @@ a:active,
 }
 
 /* -----------------------
+   New Styles for Bookmark Feature
+------------------------- */
+.bookmark-star {
+  cursor: pointer;
+  font-size: 1.2rem;
+  color: #E7FF6E;
+  transition: color 0.3s;
+}
+.bookmark-star.bookmarked {
+  color: #E7FF6E;
+}
+
+/* -----------------------
    Mobile responsiveness
 ------------------------- */
 @media (max-width: 768px) {
-  /* Hide extra filters by default on mobile */
   .mobile-extra-filters-wrapper {
     display: none;
   }
-  /* Make the filter container stack vertically */
   .FilterContainer {
     flex-direction: column;
     align-items: stretch;
   }
-  /* Adjust filter button group positioning to avoid cutoff */
   .filter-button-group {
     margin-top: 10px;
     position: static;
   }
-  /* Hide the table header on mobile */
   table thead {
     display: none;
   }
-  /* Mobile cell styling for table rows */
   .mobile-cell {
     display: block;
     width: 100%;
@@ -452,7 +457,6 @@ a:active,
   .mobile-rating {
     font-size: 14px;
   }
-  /* Ensure the mobile sort dropdown and extra filters toggle are visible */
   #mobile-sort-dropdown {
     display: block;
     margin-bottom: 10px;
@@ -465,6 +469,14 @@ a:active,
     text-align: center;
     line-height: 40px;
     border-radius: 50%;
+  }
+  /* Improved placement for mobile bookmark icon */
+  .mobile-bookmark {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 1.5rem;
   }
 }
 
@@ -489,13 +501,11 @@ a:active,
     overflow-x: auto;
     gap: 16px;
   }
-  /* Each filter group: label above input, but placed horizontally side by side */
   .filter-group {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
   }
-  /* The filter/shuffle button group also in-line */
   .FilterContainer > .filter-button-group {
     display: flex;
     align-items: center;
