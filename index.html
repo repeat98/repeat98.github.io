@@ -26,11 +26,11 @@
       property="og:description"
       content="Gruuvs – a new interface for Discogs"
     />
-    <meta property="og:image" content="https://raw.githubusercontent.com/repeat98/repeat98.github.io/refs/heads/main/img/screen.jpg" />
     <meta
-      property="og:url"
-      content="https://repeat98.github.io/"
+      property="og:image"
+      content="https://raw.githubusercontent.com/repeat98/repeat98.github.io/refs/heads/main/img/screen.jpg"
     />
+    <meta property="og:url" content="https://repeat98.github.io/" />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
 
@@ -77,7 +77,7 @@
                 </span>
                 <!-- New Bookmark tab -->
                 <span id="tab-bookmark" class="tab-icon">
-                  <i class="bi bi-star"></i>
+                  <i class="bi bi-bookmark"></i>
                 </span>
               </div>
               <div class="dark-mode-toggle">
@@ -178,6 +178,26 @@
                   class="filter-input"
                   placeholder="e.g. 10-25"
                 />
+              </div>
+            </div>
+            <!-- New personalized recommendations toggle (visible only in shuffle tab) -->
+            <div class="filter-group toggle-group" id="personalized-toggle-container" style="display: none;">
+              <div class="toggle-wrapper">
+                <!-- Toggle Switch -->
+                <label class="toggle-switch">
+                  <input
+                    type="checkbox"
+                    id="togglePersonalized"
+                    title="Toggle Personalized Recommendations"
+                  />
+                  <span class="slider round"></span>
+                </label>
+            
+                <!-- Label with icon on the right side -->
+                <label for="togglePersonalized" class="toggle-label">
+                  <i class="bi bi-stars"></i>
+                  Personalized
+                </label>
               </div>
             </div>
             <!-- Filter and Shuffle buttons -->
@@ -387,7 +407,7 @@
 
     <footer class="text-center py-3">
       <small>
-        <a href="discogs.html" style="color: inherit; text-decoration: none;">
+        <a href="discogs.html" style="color: inherit; text-decoration: none">
           &copy; 2025 - Jannik Aßfalg
         </a>
       </small>

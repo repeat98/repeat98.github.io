@@ -14,6 +14,9 @@ let totalPages = 1;
 // Global active tab state: "search", "shuffle", or "bookmark"
 let activeTab = "search";
 
+// Global personalized toggle flag (false by default)
+let personalizedEnabled = false;
+
 // Default: Sort by rating_coeff descending
 let sortConfig = {
   key: "rating_coeff",
@@ -23,7 +26,6 @@ let sortConfig = {
 let youtubeApiReady = false;
 
 // ------------------ Bookmark Data ------------------
-// Bookmarks are stored in localStorage as a JSON array of release objects
 function getBookmarkedReleases() {
   return JSON.parse(localStorage.getItem("bookmarkedReleases") || "[]");
 }
@@ -45,11 +47,9 @@ function toggleBookmark(release) {
     bookmarks.push(release);
   }
   saveBookmarkedReleases(bookmarks);
-  // If we are in bookmark view, reload the bookmarks
   if (activeTab === "bookmark") {
     loadBookmarks(currentPage);
   }
-  // Re-render the current table to update the bookmark icons
   renderTable();
 }
 
@@ -86,25 +86,15 @@ async function fetchReleases({ page = 1 } = {}) {
   const selectedGenre = document.getElementById("genre").value;
   const selectedStyle = document.getElementById("style").value;
   const { min: yearMin, max: yearMax } = parseYearRange();
-  const ratingRange = parseRangeInput(
-    document.getElementById("rating_range").value.trim()
-  );
-  const ratingCountRange = parseRangeInput(
-    document.getElementById("rating_count_range").value.trim()
-  );
-  const priceRange = parseRangeInput(
-    document.getElementById("price_range").value.trim()
-  );
+  const ratingRange = parseRangeInput(document.getElementById("rating_range").value.trim());
+  const ratingCountRange = parseRangeInput(document.getElementById("rating_count_range").value.trim());
+  const priceRange = parseRangeInput(document.getElementById("price_range").value.trim());
 
-  let query = supabaseClient
-    .from("releases")
-    .select("*", { count: "exact" });
-
+  let query = supabaseClient.from("releases").select("*", { count: "exact" });
   const searchQuery = document.getElementById("searchInput").value.trim();
   if (searchQuery) {
     query = query.ilike("title", `%${searchQuery}%`);
   }
-
   if (selectedGenre) {
     query = query.ilike("genre", `%${selectedGenre}%`);
   }
@@ -113,29 +103,20 @@ async function fetchReleases({ page = 1 } = {}) {
   }
   if (yearMin !== -Infinity) query = query.gte("year", yearMin);
   if (yearMax !== Infinity) query = query.lte("year", yearMax);
-  if (ratingRange.min !== -Infinity)
-    query = query.gte("average_rating", ratingRange.min);
-  if (ratingRange.max !== Infinity)
-    query = query.lte("average_rating", ratingRange.max);
-  if (ratingCountRange.min !== -Infinity)
-    query = query.gte("rating_count", ratingCountRange.min);
-  if (ratingCountRange.max !== Infinity)
-    query = query.lte("rating_count", ratingCountRange.max);
-  if (priceRange.min !== -Infinity)
-    query = query.gte("lowest_price", priceRange.min);
-  if (priceRange.max !== Infinity)
-    query = query.lte("lowest_price", priceRange.max);
+  if (ratingRange.min !== -Infinity) query = query.gte("average_rating", ratingRange.min);
+  if (ratingRange.max !== Infinity) query = query.lte("average_rating", ratingRange.max);
+  if (ratingCountRange.min !== -Infinity) query = query.gte("rating_count", ratingCountRange.min);
+  if (ratingCountRange.max !== Infinity) query = query.lte("rating_count", ratingCountRange.max);
+  if (priceRange.min !== -Infinity) query = query.gte("lowest_price", priceRange.min);
+  if (priceRange.max !== Infinity) query = query.lte("lowest_price", priceRange.max);
 
   if (sortConfig.key) {
-    query = query.order(sortConfig.key, {
-      ascending: sortConfig.order === "asc",
-    });
+    query = query.order(sortConfig.key, { ascending: sortConfig.order === "asc" });
   }
 
   const start = (page - 1) * pageSize;
   const end = start + pageSize - 1;
   query = query.range(start, end);
-
   const { data, count, error } = await query;
   if (error) {
     console.error("Error fetching releases data:", error);
@@ -152,7 +133,6 @@ async function loadData(page = 1) {
   currentPage = page;
   renderTable();
   renderPagination();
-  // Show pagination for Search (and Bookmark) tabs
   document.getElementById("pagination").style.display = "block";
 }
 
@@ -161,25 +141,15 @@ async function fetchShuffleReleases() {
   const selectedGenre = document.getElementById("genre").value;
   const selectedStyle = document.getElementById("style").value;
   const { min: yearMin, max: yearMax } = parseYearRange();
-  const ratingRange = parseRangeInput(
-    document.getElementById("rating_range").value.trim()
-  );
-  const ratingCountRange = parseRangeInput(
-    document.getElementById("rating_count_range").value.trim()
-  );
-  const priceRange = parseRangeInput(
-    document.getElementById("price_range").value.trim()
-  );
+  const ratingRange = parseRangeInput(document.getElementById("rating_range").value.trim());
+  const ratingCountRange = parseRangeInput(document.getElementById("rating_count_range").value.trim());
+  const priceRange = parseRangeInput(document.getElementById("price_range").value.trim());
 
-  let query = supabaseClient
-    .from("releases")
-    .select("*", { count: "exact" });
-
+  let query = supabaseClient.from("releases").select("*", { count: "exact" });
   const searchQuery = document.getElementById("searchInput").value.trim();
   if (searchQuery) {
     query = query.ilike("title", `%${searchQuery}%`);
   }
-
   if (selectedGenre) {
     query = query.ilike("genre", `%${selectedGenre}%`);
   }
@@ -188,18 +158,12 @@ async function fetchShuffleReleases() {
   }
   if (yearMin !== -Infinity) query = query.gte("year", yearMin);
   if (yearMax !== Infinity) query = query.lte("year", yearMax);
-  if (ratingRange.min !== -Infinity)
-    query = query.gte("average_rating", ratingRange.min);
-  if (ratingRange.max !== Infinity)
-    query = query.lte("average_rating", ratingRange.max);
-  if (ratingCountRange.min !== -Infinity)
-    query = query.gte("rating_count", ratingCountRange.min);
-  if (ratingCountRange.max !== Infinity)
-    query = query.lte("rating_count", ratingCountRange.max);
-  if (priceRange.min !== -Infinity)
-    query = query.gte("lowest_price", priceRange.min);
-  if (priceRange.max !== Infinity)
-    query = query.lte("lowest_price", priceRange.max);
+  if (ratingRange.min !== -Infinity) query = query.gte("average_rating", ratingRange.min);
+  if (ratingRange.max !== Infinity) query = query.lte("average_rating", ratingRange.max);
+  if (ratingCountRange.min !== -Infinity) query = query.gte("rating_count", ratingCountRange.min);
+  if (ratingCountRange.max !== Infinity) query = query.lte("rating_count", ratingCountRange.max);
+  if (priceRange.min !== -Infinity) query = query.gte("lowest_price", priceRange.min);
+  if (priceRange.max !== Infinity) query = query.lte("lowest_price", priceRange.max);
 
   const { data: allData, count, error } = await query;
   if (error) {
@@ -209,15 +173,10 @@ async function fetchShuffleReleases() {
   const shuffleSize = 5;
   if (count > shuffleSize) {
     const randomOffset = Math.floor(Math.random() * (count - shuffleSize + 1));
-    let rangeQuery = supabaseClient
-      .from("releases")
-      .select("*")
-      .range(randomOffset, randomOffset + shuffleSize - 1);
-
+    let rangeQuery = supabaseClient.from("releases").select("*").range(randomOffset, randomOffset + shuffleSize - 1);
     if (searchQuery) {
       rangeQuery = rangeQuery.ilike("title", `%${searchQuery}%`);
     }
-
     if (selectedGenre) {
       rangeQuery = rangeQuery.ilike("genre", `%${selectedGenre}%`);
     }
@@ -226,18 +185,12 @@ async function fetchShuffleReleases() {
     }
     if (yearMin !== -Infinity) rangeQuery = rangeQuery.gte("year", yearMin);
     if (yearMax !== Infinity) rangeQuery = rangeQuery.lte("year", yearMax);
-    if (ratingRange.min !== -Infinity)
-      rangeQuery = rangeQuery.gte("average_rating", ratingRange.min);
-    if (ratingRange.max !== Infinity)
-      rangeQuery = rangeQuery.lte("average_rating", ratingRange.max);
-    if (ratingCountRange.min !== -Infinity)
-      rangeQuery = rangeQuery.gte("rating_count", ratingCountRange.min);
-    if (ratingCountRange.max !== Infinity)
-      rangeQuery = rangeQuery.lte("rating_count", ratingCountRange.max);
-    if (priceRange.min !== -Infinity)
-      rangeQuery = rangeQuery.gte("lowest_price", priceRange.min);
-    if (priceRange.max !== Infinity)
-      rangeQuery = rangeQuery.lte("lowest_price", priceRange.max);
+    if (ratingRange.min !== -Infinity) rangeQuery = rangeQuery.gte("average_rating", ratingRange.min);
+    if (ratingRange.max !== Infinity) rangeQuery = rangeQuery.lte("average_rating", ratingRange.max);
+    if (ratingCountRange.min !== -Infinity) rangeQuery = rangeQuery.gte("rating_count", ratingCountRange.min);
+    if (ratingCountRange.max !== Infinity) rangeQuery = rangeQuery.lte("rating_count", ratingCountRange.max);
+    if (priceRange.min !== -Infinity) rangeQuery = rangeQuery.gte("lowest_price", priceRange.min);
+    if (priceRange.max !== Infinity) rangeQuery = rangeQuery.lte("lowest_price", priceRange.max);
 
     const { data, error: err } = await rangeQuery;
     if (err) {
@@ -250,14 +203,93 @@ async function fetchShuffleReleases() {
   }
 }
 
-async function loadShuffleData() {
-  const { data, count } = await fetchShuffleReleases();
-  filteredData = data;
-  totalRecords = count;
+// ------------------ Personalized Recommendations ------------------
+// Compute a score for each release based on:
+// - Whether it is bookmarked (adds bonus)
+// - Whether it has been interacted with (adds bonus)
+// - Matches with genres and styles from previously interacted/bookmarked releases (adds bonus)
+// - Its average rating and rating count
+async function loadPersonalizedShuffleData() {
+  const { data: candidateData } = await fetchShuffleReleases();
+
+  // Retrieve user interactions and bookmarks
+  const interactedReleasesIds = JSON.parse(localStorage.getItem("interactedReleases")) || [];
+  const bookmarked = getBookmarkedReleases();
+
+  // Aggregate preferred genres and styles from bookmarks and interacted releases (for simplicity, we combine both)
+  let preferredGenres = {};
+  let preferredStyles = {};
+
+  // Assume bookmarked releases contain genre and style metadata
+  bookmarked.forEach(release => {
+    if (release.genre) {
+      release.genre.split(",").forEach(g => {
+        const genre = g.trim();
+        if (genre) preferredGenres[genre] = (preferredGenres[genre] || 0) + 1;
+      });
+    }
+    if (release.style) {
+      release.style.split(",").forEach(s => {
+        const style = s.trim();
+        if (style) preferredStyles[style] = (preferredStyles[style] || 0) + 1;
+      });
+    }
+  });
+
+  // Optionally, you could also retrieve additional metadata from interacted releases if available.
+  // Here, we use the candidate set for scoring.
+  candidateData.forEach(release => {
+    let score = 0;
+    // Bonus if bookmarked
+    if (bookmarked.some(r => r.id === release.id)) score += 2;
+    // Bonus if interacted
+    if (interactedReleasesIds.includes(release.id)) score += 1;
+    // Base score from average rating (if available)
+    if (release.average_rating) score += parseFloat(release.average_rating);
+    // Bonus based on rating count (normalized)
+    if (release.rating_count) score += Math.log(release.rating_count + 1);
+    // Bonus if release's genres match user preferences
+    if (release.genre) {
+      release.genre.split(",").forEach(g => {
+        const genre = g.trim();
+        if (preferredGenres[genre]) score += preferredGenres[genre] * 0.5;
+      });
+    }
+    // Bonus if release's styles match user preferences
+    if (release.style) {
+      release.style.split(",").forEach(s => {
+        const style = s.trim();
+        if (preferredStyles[style]) score += preferredStyles[style] * 0.5;
+      });
+    }
+    // Incorporate search relevance if a search query exists
+    const currentSearch = document.getElementById("searchInput").value.trim().toLowerCase();
+    if (currentSearch && release.title.toLowerCase().includes(currentSearch)) {
+      score += 1;
+    }
+    release.personalizedScore = score;
+  });
+
+  // Sort candidate releases by personalizedScore descending and take top 5
+  const sorted = candidateData.sort((a, b) => b.personalizedScore - a.personalizedScore);
+  filteredData = sorted.slice(0, 5);
+  totalRecords = filteredData.length;
   currentPage = 1;
   renderTable();
-  // Remove pagination on shuffle tab
   document.getElementById("pagination").style.display = "none";
+}
+
+async function loadShuffleData() {
+  if (personalizedEnabled) {
+    await loadPersonalizedShuffleData();
+  } else {
+    const { data, count } = await fetchShuffleReleases();
+    filteredData = data;
+    totalRecords = count;
+    currentPage = 1;
+    renderTable();
+    document.getElementById("pagination").style.display = "none";
+  }
 }
 
 // ------------------ Load Bookmarked Releases ------------------
@@ -272,12 +304,9 @@ function loadBookmarks(page = 1) {
   document.getElementById("pagination").style.display = "block";
 }
 
-// ------------------ Initialize Filters Dropdowns ------------------
+// ------------------ Initialize Filters Dropdown ------------------
 async function initializeFilters() {
-  const { data, error } = await supabaseClient
-    .from("releases")
-    .select("genre, style")
-    .limit(2000);
+  const { data, error } = await supabaseClient.from("releases").select("genre, style").limit(2000);
   if (error) {
     console.error("Error loading genres/styles:", error);
     return;
@@ -298,7 +327,6 @@ async function initializeFilters() {
   });
   const genresArray = Array.from(genresSet).sort();
   const stylesArray = Array.from(stylesSet).sort();
-
   const genreSelect = document.getElementById("genre");
   genreSelect.innerHTML = '<option value="">All Genres</option>';
   genresArray.forEach((genre) => {
@@ -307,7 +335,6 @@ async function initializeFilters() {
     option.textContent = genre;
     genreSelect.appendChild(option);
   });
-
   const styleSelect = document.getElementById("style");
   styleSelect.innerHTML = '<option value="">All Styles</option>';
   stylesArray.forEach((style) => {
@@ -335,7 +362,6 @@ function renderTable() {
   const tbody = document.getElementById("releases-table-body");
   tbody.innerHTML = "";
   document.getElementById("results-count").textContent = `Showing ${totalRecords} result(s)`;
-
   if (filteredData.length === 0) {
     tbody.innerHTML = `<tr><td class="no-results" colspan="12">
           <i class="bi bi-exclamation-triangle-fill"></i>
@@ -343,22 +369,16 @@ function renderTable() {
         </td></tr>`;
     return;
   }
-
   filteredData.forEach((release) => {
     const tr = document.createElement("tr");
     tr.setAttribute("data-id", release.id);
-
-    const interactedReleases =
-      JSON.parse(localStorage.getItem("interactedReleases")) || [];
+    const interactedReleases = JSON.parse(localStorage.getItem("interactedReleases")) || [];
     if (interactedReleases.includes(release.id)) {
       tr.classList.add("greyed-out");
     }
-
-    // Create bookmark cell (for both desktop and mobile)
     const tdBookmark = document.createElement("td");
     tdBookmark.className = "text-center";
     const bookmarkIcon = document.createElement("i");
-    // Set a smaller icon size
     bookmarkIcon.style.fontSize = "1rem";
     bookmarkIcon.className = "bi bookmark-star " + (isBookmarked(release.id) ? "bi-bookmark-fill bookmarked" : "bi-bookmark");
     bookmarkIcon.title = "Toggle Bookmark";
@@ -366,21 +386,13 @@ function renderTable() {
       toggleBookmark(release);
     });
     tdBookmark.appendChild(bookmarkIcon);
-
     if (isMobile) {
-      // Mobile: render one single cell containing preview, title, rating and bookmark icon at bottom-right.
       const tdMobile = document.createElement("td");
       tdMobile.className = "mobile-cell";
-      // Set mobile cell to relative so absolute positioning works.
       tdMobile.style.position = "relative";
-      
-      // Preview
       let previewContent = "";
       if (release.youtube_links) {
-        const links = release.youtube_links
-          .split(",")
-          .map((l) => l.trim())
-          .filter((l) => l);
+        const links = release.youtube_links.split(",").map((l) => l.trim()).filter((l) => l);
         if (links.length > 0) {
           const yID = extractYouTubeID(links[0]);
           if (yID) {
@@ -396,8 +408,6 @@ function renderTable() {
       } else {
         previewContent = `<div class="mobile-preview text-muted">No YouTube links</div>`;
       }
-
-      // Title (with copy button)
       const titleDiv = document.createElement("div");
       titleDiv.className = "mobile-title";
       const titleLink = document.createElement("a");
@@ -422,10 +432,7 @@ function renderTable() {
           tr.classList.add("greyed-out");
           const originalTitle = copyBtn.title;
           copyBtn.title = "Copied!";
-          const tooltip = new bootstrap.Tooltip(copyBtn, {
-            container: "body",
-            trigger: "manual",
-          });
+          const tooltip = new bootstrap.Tooltip(copyBtn, { container: "body", trigger: "manual" });
           tooltip.show();
           setTimeout(() => {
             copyBtn.title = originalTitle;
@@ -437,28 +444,16 @@ function renderTable() {
       });
       titleDiv.appendChild(titleLink);
       titleDiv.appendChild(copyBtn);
-
-      // Rating
       const ratingDiv = document.createElement("div");
       ratingDiv.className = "mobile-rating";
-      if (
-        release.average_rating !== undefined &&
-        release.rating_count !== undefined
-      ) {
-        ratingDiv.innerHTML = `${generateStars(
-          release.average_rating
-        )} ${parseFloat(release.average_rating).toFixed(
-          1
-        )} (${release.rating_count})`;
+      if (release.average_rating !== undefined && release.rating_count !== undefined) {
+        ratingDiv.innerHTML = `${generateStars(release.average_rating)} ${parseFloat(release.average_rating).toFixed(1)} (${release.rating_count})`;
       } else {
         ratingDiv.innerHTML = `<div class="text-muted">No rating</div>`;
       }
-
       tdMobile.innerHTML += previewContent;
       tdMobile.appendChild(titleDiv);
       tdMobile.appendChild(ratingDiv);
-      
-      // Append bookmark icon in a container positioned at bottom-right
       const mobileBookmarkContainer = document.createElement("div");
       mobileBookmarkContainer.className = "mobile-bookmark";
       mobileBookmarkContainer.style.position = "absolute";
@@ -466,11 +461,8 @@ function renderTable() {
       mobileBookmarkContainer.style.right = "8px";
       mobileBookmarkContainer.appendChild(tdBookmark);
       tdMobile.appendChild(mobileBookmarkContainer);
-      
       tr.appendChild(tdMobile);
     } else {
-      // Desktop: render full row with separate cells.
-      // Title
       const tdTitle = document.createElement("td");
       const titleDiv = document.createElement("div");
       titleDiv.className = "d-flex align-items-center";
@@ -496,10 +488,7 @@ function renderTable() {
           tr.classList.add("greyed-out");
           const originalTitle = copyBtn.title;
           copyBtn.title = "Copied!";
-          const tooltip = new bootstrap.Tooltip(copyBtn, {
-            container: "body",
-            trigger: "manual",
-          });
+          const tooltip = new bootstrap.Tooltip(copyBtn, { container: "body", trigger: "manual" });
           tooltip.show();
           setTimeout(() => {
             copyBtn.title = originalTitle;
@@ -513,19 +502,13 @@ function renderTable() {
       titleDiv.appendChild(copyBtn);
       tdTitle.appendChild(titleDiv);
       tr.appendChild(tdTitle);
-
-      // Label
       const tdLabel = document.createElement("td");
       tdLabel.textContent = release.label || "Unknown";
       tr.appendChild(tdLabel);
-
-      // Year
       const tdYear = document.createElement("td");
       tdYear.className = "text-center";
       tdYear.textContent = release.year || "N/A";
       tr.appendChild(tdYear);
-
-      // Genre/Style
       const tdGenreStyle = document.createElement("td");
       if (release.genre) {
         release.genre.split(",").forEach((g) => {
@@ -544,72 +527,39 @@ function renderTable() {
         });
       }
       tr.appendChild(tdGenreStyle);
-
-      // User Rating
       const tdRating = document.createElement("td");
       tdRating.className = "text-center";
-      if (
-        release.average_rating !== undefined &&
-        release.rating_count !== undefined
-      ) {
-        tdRating.innerHTML = `${generateStars(
-          release.average_rating
-        )} ${parseFloat(release.average_rating).toFixed(
-          1
-        )} (${release.rating_count})`;
+      if (release.average_rating !== undefined && release.rating_count !== undefined) {
+        tdRating.innerHTML = `${generateStars(release.average_rating)} ${parseFloat(release.average_rating).toFixed(1)} (${release.rating_count})`;
       } else {
         tdRating.innerHTML = '<div class="text-muted">No rating</div>';
       }
       tr.appendChild(tdRating);
-
-      // Rarity
       const tdRarity = document.createElement("td");
       tdRarity.className = "text-center";
-      tdRarity.textContent = release.demand_coeff
-        ? parseFloat(release.demand_coeff).toFixed(2)
-        : "0.00";
+      tdRarity.textContent = release.demand_coeff ? parseFloat(release.demand_coeff).toFixed(2) : "0.00";
       tr.appendChild(tdRarity);
-
-      // Gem
       const tdGem = document.createElement("td");
       tdGem.className = "text-center";
-      tdGem.textContent = release.gem_value
-        ? parseFloat(release.gem_value).toFixed(2)
-        : "0.00";
+      tdGem.textContent = release.gem_value ? parseFloat(release.gem_value).toFixed(2) : "0.00";
       tr.appendChild(tdGem);
-
-      // Have
       const tdHave = document.createElement("td");
       tdHave.className = "text-center";
       tdHave.textContent = release.have || 0;
       tr.appendChild(tdHave);
-
-      // Want
       const tdWant = document.createElement("td");
       tdWant.className = "text-center";
       tdWant.textContent = release.want || 0;
       tr.appendChild(tdWant);
-
-      // Price
       const tdPrice = document.createElement("td");
       tdPrice.className = "text-center";
-      tdPrice.textContent =
-        release.lowest_price !== undefined
-          ? `${parseFloat(release.lowest_price).toFixed(2)}$`
-          : "N/A";
+      tdPrice.textContent = release.lowest_price !== undefined ? `${parseFloat(release.lowest_price).toFixed(2)}$` : "N/A";
       tr.appendChild(tdPrice);
-
-      // Insert bookmark column between Price and Preview
       tr.appendChild(tdBookmark);
-
-      // Preview
       const tdPreview = document.createElement("td");
       tdPreview.className = "text-center";
       if (release.youtube_links) {
-        const links = release.youtube_links
-          .split(",")
-          .map((l) => l.trim())
-          .filter((l) => l);
+        const links = release.youtube_links.split(",").map((l) => l.trim()).filter((l) => l);
         if (links.length > 0) {
           const yID = extractYouTubeID(links[0]);
           if (yID) {
@@ -621,8 +571,7 @@ function renderTable() {
             iframe.setAttribute("aria-label", "YouTube video player");
             iframe.src = `https://www.youtube.com/embed/${yID}?enablejsapi=1&rel=0&modestbranding=1`;
             iframe.frameBorder = "0";
-            iframe.allow =
-              "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
+            iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
             iframe.allowFullscreen = true;
             iframe.style.width = "220px";
             iframe.style.height = "124px";
@@ -632,22 +581,18 @@ function renderTable() {
             iframeContainer.appendChild(iframe);
             tdPreview.appendChild(iframeContainer);
           } else {
-            tdPreview.innerHTML =
-              '<div class="text-muted">Invalid YouTube link</div>';
+            tdPreview.innerHTML = '<div class="text-muted">Invalid YouTube link</div>';
           }
         } else {
-          tdPreview.innerHTML =
-            '<div class="text-muted">No YouTube links</div>';
+          tdPreview.innerHTML = '<div class="text-muted">No YouTube links</div>';
         }
       } else {
-        tdPreview.innerHTML =
-          '<div class="text-muted">No YouTube links</div>';
+        tdPreview.innerHTML = '<div class="text-muted">No YouTube links</div>';
       }
       tr.appendChild(tdPreview);
     }
     tbody.appendChild(tr);
   });
-
   attachCopyHandlers();
   if (youtubeApiReady) {
     initializeYouTubePlayers();
@@ -702,7 +647,6 @@ function renderPagination() {
   const pag = document.getElementById("pagination");
   pag.innerHTML = "";
   if (totalPages <= 1) return;
-
   const prevLi = document.createElement("li");
   prevLi.className = `page-item ${currentPage === 1 ? "disabled" : ""}`;
   const prevLink = document.createElement("a");
@@ -712,16 +656,11 @@ function renderPagination() {
   prevLink.addEventListener("click", (e) => {
     e.preventDefault();
     if (currentPage > 1) {
-      if(activeTab === "bookmark"){
-        loadBookmarks(currentPage - 1);
-      } else {
-        loadData(currentPage - 1);
-      }
+      activeTab === "bookmark" ? loadBookmarks(currentPage - 1) : loadData(currentPage - 1);
     }
   });
   prevLi.appendChild(prevLink);
   pag.appendChild(prevLi);
-
   const startPage = Math.max(1, currentPage - 2);
   const endPage = Math.min(totalPages, currentPage + 2);
   for (let p = startPage; p <= endPage; p++) {
@@ -733,16 +672,11 @@ function renderPagination() {
     pageLink.textContent = p;
     pageLink.addEventListener("click", (e) => {
       e.preventDefault();
-      if(activeTab === "bookmark"){
-        loadBookmarks(p);
-      } else {
-        loadData(p);
-      }
+      activeTab === "bookmark" ? loadBookmarks(p) : loadData(p);
     });
     pageLi.appendChild(pageLink);
     pag.appendChild(pageLi);
   }
-
   const nextLi = document.createElement("li");
   nextLi.className = `page-item ${currentPage === totalPages ? "disabled" : ""}`;
   const nextLink = document.createElement("a");
@@ -752,11 +686,7 @@ function renderPagination() {
   nextLink.addEventListener("click", (e) => {
     e.preventDefault();
     if (currentPage < totalPages) {
-      if(activeTab === "bookmark"){
-        loadBookmarks(currentPage + 1);
-      } else {
-        loadData(currentPage + 1);
-      }
+      activeTab === "bookmark" ? loadBookmarks(currentPage + 1) : loadData(currentPage + 1);
     }
   });
   nextLi.appendChild(nextLink);
@@ -814,9 +744,7 @@ document.querySelectorAll("th[data-sort]").forEach((header) => {
   header.addEventListener("click", () => {
     const sortValue = header.getAttribute("data-sort");
     const colName = header.getAttribute("data-column");
-
     if (sortValue === "NO_SORT") return;
-
     if (sortValue === "USER_RATING") {
       if (sortConfig.key === "rating_coeff") {
         sortConfig.order = sortConfig.order === "asc" ? "desc" : "asc";
@@ -832,7 +760,6 @@ document.querySelectorAll("th[data-sort]").forEach((header) => {
         sortConfig.order = "asc";
       }
     }
-
     loadData(currentPage);
     updateSortIndicators();
   });
@@ -843,26 +770,21 @@ function updateSortIndicators() {
     const sortValue = header.getAttribute("data-sort");
     const colName = header.getAttribute("data-column");
     header.innerHTML = colName;
-
     if (sortValue === "NO_SORT") {
       const res = document.createElement("div");
       res.className = "resizer";
       header.appendChild(res);
       return;
     }
-
     if (sortConfig.key === "rating_coeff" && sortValue === "USER_RATING") {
-      header.innerHTML +=
-        sortConfig.order === "asc"
-          ? '<i class="bi bi-arrow-up sort-indicator" title="rating_coeff ascending"></i>'
-          : '<i class="bi bi-arrow-down sort-indicator" title="rating_coeff descending"></i>';
+      header.innerHTML += sortConfig.order === "asc"
+        ? '<i class="bi bi-arrow-up sort-indicator" title="rating_coeff ascending"></i>'
+        : '<i class="bi bi-arrow-down sort-indicator" title="rating_coeff descending"></i>';
     } else if (sortConfig.key === sortValue) {
-      header.innerHTML +=
-        sortConfig.order === "asc"
-          ? '<i class="bi bi-arrow-up sort-indicator"></i>'
-          : '<i class="bi bi-arrow-down sort-indicator"></i>';
+      header.innerHTML += sortConfig.order === "asc"
+        ? '<i class="bi bi-arrow-up sort-indicator"></i>'
+        : '<i class="bi bi-arrow-down sort-indicator"></i>';
     }
-
     const res = document.createElement("div");
     res.className = "resizer";
     header.appendChild(res);
@@ -880,10 +802,7 @@ function initializeYouTubePlayers() {
           new YT.Player(iframe, {
             events: {
               onStateChange: (event) => {
-                if (
-                  event.data === YT.PlayerState.PAUSED ||
-                  event.data === YT.PlayerState.ENDED
-                ) {
+                if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
                   markAsInteracted(release.id);
                   const tr = iframe.closest("tr");
                   if (tr) tr.classList.add("greyed-out");
@@ -903,11 +822,8 @@ function trackFilterApplied() {
   const style = document.getElementById("style").value;
   const yearRange = document.getElementById("year_range").value.trim();
   const ratingRange = document.getElementById("rating_range").value.trim();
-  const ratingCountRange = document
-    .getElementById("rating_count_range")
-    .value.trim();
+  const ratingCountRange = document.getElementById("rating_count_range").value.trim();
   const priceRange = document.getElementById("price_range").value.trim();
-
   gtag("event", "filter_applied", {
     genre: genre || "All",
     style: style || "All",
@@ -937,7 +853,6 @@ function trackReleaseLinkClick(release) {
 
 // ------------------ Tab Toggle and Filter Button Update ------------------
 function updateFilterButtons() {
-  // For Bookmark tab, hide filter form and show export/import actions
   if (activeTab === "bookmark") {
     document.getElementById("filter-wrapper").style.display = "none";
     document.getElementById("bookmark-actions").style.display = "block";
@@ -945,13 +860,15 @@ function updateFilterButtons() {
     document.getElementById("filter-wrapper").style.display = "block";
     document.getElementById("bookmark-actions").style.display = "none";
   }
-
   if (activeTab === "search") {
     document.querySelector(".filter-btn").style.display = "inline-block";
     document.querySelector(".shuffle-btn").style.display = "none";
+    document.getElementById("personalized-toggle-container").style.display = "none";
   } else if (activeTab === "shuffle") {
     document.querySelector(".filter-btn").style.display = "none";
     document.querySelector(".shuffle-btn").style.display = "inline-block";
+    // Show the personalized toggle only in shuffle mode
+    document.getElementById("personalized-toggle-container").style.display = "flex";
   }
 }
 
@@ -987,12 +904,18 @@ function importBookmarks(file) {
 
 // ------------------ DOMContentLoaded ------------------
 document.addEventListener("DOMContentLoaded", async () => {
-  // Update navbar bookmark icon to use bookmark instead of star
   const navBookmark = document.getElementById("tab-bookmark");
   if (navBookmark) {
     navBookmark.innerHTML = '<i class="bi bi-bookmark"></i>';
   }
-
+  // Set up personalized toggle listener inside filter box
+  const togglePersonalized = document.getElementById("togglePersonalized");
+  togglePersonalized.addEventListener("change", () => {
+    personalizedEnabled = togglePersonalized.checked;
+    if (activeTab === "shuffle") {
+      loadShuffleData();
+    }
+  });
   await initializeFilters();
   if (activeTab === "search") {
     loadData(1);
@@ -1005,7 +928,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   makeTableResizable();
   updateSortIndicators();
   updateFilterButtons();
-
   document.getElementById("filter-form").addEventListener("submit", (e) => {
     e.preventDefault();
     trackFilterApplied();
@@ -1015,7 +937,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       loadShuffleData();
     }
   });
-
   document.getElementById("genre").addEventListener("change", () => {
     trackFilterApplied();
     if (activeTab === "search") {
@@ -1032,12 +953,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       loadShuffleData();
     }
   });
-
   const darkModeToggle = document.getElementById("darkModeToggle");
-  if (
-    localStorage.getItem("darkModeEnabled") === "true" ||
-    !localStorage.getItem("darkModeEnabled")
-  ) {
+  if (localStorage.getItem("darkModeEnabled") === "true" || !localStorage.getItem("darkModeEnabled")) {
     document.body.classList.add("dark-mode");
   } else {
     document.body.classList.remove("dark-mode");
@@ -1051,7 +968,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       localStorage.setItem("darkModeEnabled", "true");
     }
   });
-
   document.getElementById("tab-search").addEventListener("click", (e) => {
     e.preventDefault();
     activeTab = "search";
@@ -1062,7 +978,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     loadData(1);
     document.getElementById("searchInput").focus();
   });
-
   document.getElementById("tab-shuffle").addEventListener("click", (e) => {
     e.preventDefault();
     activeTab = "shuffle";
@@ -1072,7 +987,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     updateFilterButtons();
     loadShuffleData();
   });
-
   document.getElementById("tab-bookmark").addEventListener("click", (e) => {
     e.preventDefault();
     activeTab = "bookmark";
@@ -1082,7 +996,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     updateFilterButtons();
     loadBookmarks(1);
   });
-
   document.getElementById("shuffle-btn").addEventListener("click", (e) => {
     e.preventDefault();
     activeTab = "shuffle";
@@ -1092,7 +1005,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     trackFilterApplied();
     loadShuffleData();
   });
-
   document.getElementById("searchInput").addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -1106,8 +1018,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       loadData(1);
     }
   });
-
-  // Export and Import buttons for bookmarks
   document.getElementById("export-btn").addEventListener("click", exportBookmarks);
   document.getElementById("import-btn").addEventListener("click", () => {
     document.getElementById("import-file").click();

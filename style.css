@@ -1,4 +1,6 @@
-/* Right–aligned toggle group */
+/* -----------------------
+   Right–aligned toggle group 
+------------------------- */
 .right-toggle-group {
   display: flex;
   align-items: center;
@@ -31,7 +33,7 @@
   font-size: 1.25rem;
   flex-shrink: 0;
 }
-.tab-icon input {
+.tab-icon input[type="text"] {
   width: 0;
   border: none;
   background: transparent;
@@ -41,32 +43,79 @@
   margin: 0;
   transition: width 0.3s, padding 0.3s;
 }
-.tab-icon.active input {
+.tab-icon.active input[type="text"] {
   width: 150px;
   padding-right: 8px;
 }
 
-/* Ensure filter inputs and selects have uniform height */
-.filter-input,
-.filter-select {
-  height: 40px;
+/* -----------------------
+   Toggle switch for Personalized checkbox
+------------------------- */
+.toggle-group {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+.toggle-group .filter-label {
+  margin-bottom: 4px; /* small spacing between label and toggle */
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-/* Basic filter button group */
-.filter-button-group {
-  display: flex;
+/* Container that holds the switch + label side by side */
+.toggle-wrapper {
+  display: inline-flex;
   align-items: center;
   gap: 8px;
 }
 
-/* Make Filter/Shuffle buttons match input height & look nicer */
-.filter-button-group button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 40px;
-  line-height: 1;
-  padding: 0 12px;
+/* Toggle Switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 46px;
+  height: 24px;
+  vertical-align: middle;
+}
+.toggle-switch input[type="checkbox"] {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; 
+  left: 0; 
+  right: 0; 
+  bottom: 0;
+  background-color: #aaa;
+  transition: 0.4s;
+  border-radius: 24px;
+}
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 4px;
+  bottom: 4px;
+  background-color: #fff;
+  transition: 0.4s;
+  border-radius: 50%;
+}
+.toggle-switch input:checked + .slider {
+  background-color: #E7FF6E; /* matches Filter/Shuffle button color */
+}
+.toggle-switch input:checked + .slider:before {
+  transform: translateX(22px);
+}
+.toggle-switch input:focus + .slider {
+  box-shadow: 0 0 3px #E7FF6E;
+}
+.slider.round {
+  border-radius: 24px;
 }
 
 /* -----------------------
@@ -400,7 +449,7 @@ a:active,
   color: #000 !important;
 }
 
-/* Set the Discogs navbar title and its icon to #E7FF6E */
+/* Style the navbar title and its icon to #E7FF6E */
 .navbar-brand {
   color: #E7FF6E;
   font-weight: bold;
@@ -418,6 +467,17 @@ a:active,
 }
 .bookmark-star.bookmarked {
   color: #E7FF6E;
+}
+
+/* -----------------------
+   Match Export & Import Buttons
+   to the Filter/Shuffle style
+------------------------- */
+#export-btn,
+#import-btn {
+  background-color: #E7FF6E !important;
+  border-color: #E7FF6E !important;
+  color: #000 !important;
 }
 
 /* -----------------------
