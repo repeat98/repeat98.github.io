@@ -52,17 +52,21 @@
   height: 40px;
 }
 
-/* Filter button group (no vertical offset) */
+/* Basic filter button group */
 .filter-button-group {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-/* Force Filter/Shuffle buttons to match input height */
+/* Make Filter/Shuffle buttons match input height & look nicer */
 .filter-button-group button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   height: 40px;
-  line-height: 40px;
+  line-height: 1;
+  padding: 0 12px;  /* horizontal padding for text */
 }
 
 /* -----------------------
@@ -200,7 +204,7 @@ body.dark-mode .sun-icon {
   flex: 1;
   min-width: 150px;
   display: flex;
-  flex-direction: column; /* label above input on all viewports */
+  flex-direction: column; /* label above input always */
 }
 .filter-label {
   font-size: 12px;
