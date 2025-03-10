@@ -64,7 +64,15 @@
       <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container MainContainer">
           <div class="d-flex justify-content-between align-items-center w-100">
-            <a class="navbar-brand" href="#"> GRUUVS </a> 
+            <a class="navbar-brand" href="#">
+              GRUUVS 
+              <span 
+                class="powered-by d-none d-md-inline fst-italic fw-light" 
+                style="opacity: 0.5; font-size: 12px;"
+              >
+                powered by Discogs
+              </span>
+            </a>
             <div class="right-toggle-group d-flex align-items-center">
               <div class="tab-toggle d-flex align-items-center">
                 <!-- The search tab: input grows left while icon stays on the right -->
@@ -181,7 +189,11 @@
               </div>
             </div>
             <!-- New personalized recommendations toggle (visible only in shuffle tab) -->
-            <div class="filter-group toggle-group" id="personalized-toggle-container" style="display: none;">
+            <div
+              class="filter-group toggle-group"
+              id="personalized-toggle-container"
+              style="display: none"
+            >
               <div class="toggle-wrapper">
                 <!-- Toggle Switch -->
                 <label class="toggle-switch">
@@ -192,7 +204,7 @@
                   />
                   <span class="slider round"></span>
                 </label>
-            
+
                 <!-- Label with icon on the right side -->
                 <label for="togglePersonalized" class="toggle-label">
                   <i class="bi bi-stars"></i>
@@ -242,7 +254,7 @@
       </div>
 
       <!-- Main Content container for table and pagination -->
-      <div class="container MainContainer" style="position: relative;">
+      <div class="container MainContainer" style="position: relative">
         <!-- Results Count -->
         <div
           class="d-flex justify-content-between align-items-center mb-2"
@@ -250,7 +262,7 @@
         >
           <div id="results-count" class="fw-semibold"></div>
         </div>
-        
+
         <!-- Mobile Sorting Options (only visible on mobile) -->
         <div id="mobile-sort-dropdown">
           <select id="mobile-sort-select">

@@ -865,6 +865,8 @@ function updateFilterButtons() {
   if (activeTab === "bookmark") {
     document.getElementById("filter-wrapper").style.display = "none";
     document.getElementById("bookmark-actions").style.display = "block";
+    // Keep pagination visible in Bookmark tab
+    document.getElementById("pagination").style.display = "block";
   } else {
     document.getElementById("filter-wrapper").style.display = "block";
     document.getElementById("bookmark-actions").style.display = "none";
@@ -873,10 +875,14 @@ function updateFilterButtons() {
     document.querySelector(".filter-btn").style.display = "inline-block";
     document.querySelector(".shuffle-btn").style.display = "none";
     document.getElementById("personalized-toggle-container").style.display = "none";
+    // Keep pagination visible in Search tab
+    document.getElementById("pagination").style.display = "block";
   } else if (activeTab === "shuffle") {
     document.querySelector(".filter-btn").style.display = "none";
     document.querySelector(".shuffle-btn").style.display = "inline-block";
     document.getElementById("personalized-toggle-container").style.display = "flex";
+    // Remove pagination in the Shuffle tab
+    document.getElementById("pagination").style.display = "none";
   }
 }
 
