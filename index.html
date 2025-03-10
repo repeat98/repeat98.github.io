@@ -64,7 +64,7 @@
       <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container MainContainer">
           <div class="d-flex justify-content-between align-items-center w-100">
-            <a class="navbar-brand" href="#"> GRUUVS </a>
+            <a class="navbar-brand" href="#"> GRUUVS </a> 
             <div class="right-toggle-group d-flex align-items-center">
               <div class="tab-toggle d-flex align-items-center">
                 <!-- The search tab: input grows left while icon stays on the right -->
@@ -242,13 +242,28 @@
       </div>
 
       <!-- Main Content container for table and pagination -->
-      <div class="container MainContainer">
+      <div class="container MainContainer" style="position: relative;">
         <!-- Results Count -->
         <div
           class="d-flex justify-content-between align-items-center mb-2"
           style="margin-top: 1rem"
         >
           <div id="results-count" class="fw-semibold"></div>
+        </div>
+        
+        <!-- Mobile Sorting Options (only visible on mobile) -->
+        <div id="mobile-sort-dropdown">
+          <select id="mobile-sort-select">
+            <option value="rating_coeff">Rating</option>
+            <option value="demand_coeff">Rarity</option>
+            <option value="gem_value">Gem</option>
+            <option value="have">Have</option>
+            <option value="want">Want</option>
+            <option value="lowest_price">Price</option>
+          </select>
+          <button id="mobile-sort-toggle" title="Toggle sort order">
+            <i class="bi bi-arrow-up"></i>
+          </button>
         </div>
 
         <!-- Table -->

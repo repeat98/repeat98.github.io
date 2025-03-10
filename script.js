@@ -772,6 +772,34 @@ function updateSortIndicators() {
   });
 }
 
+// ------------------ Mobile Sorting Options ------------------
+document.addEventListener("DOMContentLoaded", () => {
+  // Initialize mobile sort dropdown if present
+  const mobileSortSelect = document.getElementById("mobile-sort-select");
+  const mobileSortToggle = document.getElementById("mobile-sort-toggle");
+  if (mobileSortSelect) {
+    mobileSortSelect.value = sortConfig.key;
+    mobileSortSelect.addEventListener("change", () => {
+      sortConfig.key = mobileSortSelect.value;
+      localStorage.setItem("sortConfig", JSON.stringify(sortConfig));
+      loadData(currentPage);
+    });
+  }
+  if (mobileSortToggle) {
+    mobileSortToggle.innerHTML = sortConfig.order === "asc" 
+      ? '<i class="bi bi-arrow-up"></i>' 
+      : '<i class="bi bi-arrow-down"></i>';
+    mobileSortToggle.addEventListener("click", () => {
+      sortConfig.order = sortConfig.order === "asc" ? "desc" : "asc";
+      localStorage.setItem("sortConfig", JSON.stringify(sortConfig));
+      mobileSortToggle.innerHTML = sortConfig.order === "asc" 
+        ? '<i class="bi bi-arrow-up"></i>' 
+        : '<i class="bi bi-arrow-down"></i>';
+      loadData(currentPage);
+    });
+  }
+});
+
 // ------------------ YouTube Integration ------------------
 function initializeYouTubePlayers() {
   filteredData.forEach((release) => {
