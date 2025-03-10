@@ -41,7 +41,8 @@
     <!-- Supabase Client Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/dist/umd/supabase.min.js"></script>
   </head>
-  <body>
+  <!-- Default dark-mode added to body -->
+  <body class="dark-mode">
     <div class="Desktop">
       <!-- Navbar -->
       <nav class="navbar navbar-expand-lg navbar-dark">
@@ -100,53 +101,64 @@
                 <option value="">All Styles</option>
               </select>
             </div>
-            <!-- Year range -->
-            <div class="filter-group">
-              <label for="year_range" class="filter-label">Year range</label>
-              <input
-                type="text"
-                id="year_range"
-                name="year_range"
-                class="filter-input"
-                placeholder="e.g. 2010-2015"
-              />
+            <!-- Mobile extra filters toggle button (only visible on mobile) -->
+            <button
+              type="button"
+              id="mobile-filters-toggle"
+              class="btn btn-secondary mobile-toggle-btn"
+            >
+              <i class="bi bi-chevron-down"></i>
+            </button>
+            <!-- Extra filters wrapped (year, rating, count, price) -->
+            <div class="mobile-extra-filters-wrapper">
+              <!-- Year range -->
+              <div class="filter-group">
+                <label for="year_range" class="filter-label">Year range</label>
+                <input
+                  type="text"
+                  id="year_range"
+                  name="year_range"
+                  class="filter-input"
+                  placeholder="e.g. 2010-2015"
+                />
+              </div>
+              <!-- Rating range -->
+              <div class="filter-group">
+                <label for="rating_range" class="filter-label">Rating range</label>
+                <input
+                  type="text"
+                  id="rating_range"
+                  name="rating_range"
+                  class="filter-input"
+                  placeholder="e.g. 3-5"
+                />
+              </div>
+              <!-- Rating Count range -->
+              <div class="filter-group">
+                <label for="rating_count_range" class="filter-label"
+                  >Rating Count range</label
+                >
+                <input
+                  type="text"
+                  id="rating_count_range"
+                  name="rating_count_range"
+                  class="filter-input"
+                  placeholder="e.g. 10-100"
+                />
+              </div>
+              <!-- Price range -->
+              <div class="filter-group">
+                <label for="price_range" class="filter-label">Price range</label>
+                <input
+                  type="text"
+                  id="price_range"
+                  name="price_range"
+                  class="filter-input"
+                  placeholder="e.g. 10-25"
+                />
+              </div>
             </div>
-            <!-- Rating range -->
-            <div class="filter-group">
-              <label for="rating_range" class="filter-label">Rating range</label>
-              <input
-                type="text"
-                id="rating_range"
-                name="rating_range"
-                class="filter-input"
-                placeholder="e.g. 3-5"
-              />
-            </div>
-            <!-- Rating Count range -->
-            <div class="filter-group">
-              <label for="rating_count_range" class="filter-label"
-                >Rating Count range</label
-              >
-              <input
-                type="text"
-                id="rating_count_range"
-                name="rating_count_range"
-                class="filter-input"
-                placeholder="e.g. 10-100"
-              />
-            </div>
-            <!-- Price range -->
-            <div class="filter-group">
-              <label for="price_range" class="filter-label">Price range</label>
-              <input
-                type="text"
-                id="price_range"
-                name="price_range"
-                class="filter-input"
-                placeholder="e.g. 10-25"
-              />
-            </div>
-            <!-- Filter and Shuffle buttons (only one shown at a time) -->
+            <!-- Filter and Shuffle buttons -->
             <div class="filter-button-group d-flex align-items-center gap-2">
               <button type="submit" class="btn btn-primary filter-btn">
                 <i class="bi bi-funnel-fill"></i> Filter
@@ -161,6 +173,27 @@
               </button>
             </div>
           </form>
+        </div>
+      </div>
+
+      <!-- Mobile sort dropdown (visible only on mobile) -->
+      <div id="mobile-sort-dropdown" class="mobile-sort-dropdown">
+        <div class="container MainContainer">
+          <select id="mobile-sort-select" class="filter-select">
+            <option value="">Sort By</option>
+            <option value="rating_asc">Rating Ascending</option>
+            <option value="rating_desc">Rating Descending</option>
+            <option value="rarity_asc">Rarity Ascending</option>
+            <option value="rarity_desc">Rarity Descending</option>
+            <option value="gem_asc">Gem Ascending</option>
+            <option value="gem_desc">Gem Descending</option>
+            <option value="have_asc">Have Ascending</option>
+            <option value="have_desc">Have Descending</option>
+            <option value="want_asc">Want Ascending</option>
+            <option value="want_desc">Want Descending</option>
+            <option value="price_asc">Price Ascending</option>
+            <option value="price_desc">Price Descending</option>
+          </select>
         </div>
       </div>
 

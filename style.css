@@ -52,13 +52,17 @@
   height: 40px;
 }
 
-/* Align filter button group vertically */
+/* Filter button group (no vertical offset) */
 .filter-button-group {
   display: flex;
   align-items: center;
   gap: 8px;
-  position: relative;
-  top: 23px;
+}
+
+/* Force Filter/Shuffle buttons to match input height */
+.filter-button-group button {
+  height: 40px;
+  line-height: 40px;
 }
 
 /* -----------------------
@@ -101,7 +105,7 @@ body.dark-mode {
   --badge-style-text: #f0f0f0;
   --input-bg: #2D2D2D;
   --input-border: #555;
-  --input-focus: #E7FF6E; /* Updated focus color for dark mode too */
+  --input-focus: #E7FF6E;
   --btn-primary-bg: #1a202c;
   --btn-primary-hover-bg: #2a2a2a;
 }
@@ -185,19 +189,20 @@ body.dark-mode .sun-icon {
   border-radius: 0;
   overflow: hidden;
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  /* Default for mobile: stack vertically */
+  flex-direction: column;
+  align-items: stretch;
   gap: 16px;
-  flex-wrap: wrap;
   transition: background-color var(--transition-speed);
 }
 .filter-group {
   position: relative;
   flex: 1;
   min-width: 150px;
+  display: flex;
+  flex-direction: column; /* label above input on all viewports */
 }
 .filter-label {
-  display: block;
   font-size: 12px;
   font-weight: 500;
   margin-bottom: 4px;
@@ -340,12 +345,12 @@ body.dark-mode .table-container tbody tr td {
   margin: 4px 4px 0 0;
 }
 .badge-genre {
-  background: var(--badge-genre-bg);
-  color: var(--badge-genre-text);
+  background: #555555 !important;
+  color: #fff !important;
 }
 .badge-style {
-  background: var(--badge-style-bg);
-  color: var(--badge-style-text);
+  background: #333333 !important;
+  color: #fff !important;
 }
 .no-results {
   text-align: center;
@@ -367,49 +372,6 @@ body.dark-mode .table-container tbody tr td {
 }
 body.resizing {
   cursor: col-resize;
-}
-
-/* Mobile responsiveness */
-@media (max-width: 768px) {
-  .MainContainer {
-    padding: 8px;
-  }
-  .filter-group {
-    min-width: 100%;
-  }
-  .table-container {
-    overflow-x: auto;
-  }
-  .tab-icon.active input {
-    width: 100px;
-  }
-  .filter-input,
-  .filter-select {
-    font-size: 14px;
-    padding: 6px 8px;
-  }
-  .navbar-brand {
-    font-size: 1.2rem;
-  }
-}
-
-/* --- Custom Overrides --- */
-
-/* Ensure the User Rating column can hold the stars without breaking */
-th[data-column="User Rating"] {
-  min-width: 180px;
-  white-space: nowrap;
-}
-
-/* Set genre and style badges to darker grey shades */
-.badge-genre {
-  background: #555555 !important;  /* dark grey */
-  color: #fff !important;
-}
-
-.badge-style {
-  background: #333333 !important;  /* very dark grey */
-  color: #fff !important;
 }
 
 /* Override rating stars color in the table */
@@ -434,7 +396,7 @@ a:active,
 .shuffle-btn {
   background-color: #E7FF6E !important;
   border-color: #E7FF6E !important;
-  color: #000 !important;  /* Adjust text color for readability */
+  color: #000 !important;
 }
 
 /* Set the Discogs navbar title and its icon to #E7FF6E */
@@ -442,4 +404,97 @@ a:active,
   color: #E7FF6E;
   font-weight: bold;
   font-size: 16px;
+}
+
+/* -----------------------
+   Mobile responsiveness
+------------------------- */
+@media (max-width: 768px) {
+  /* Hide extra filters by default on mobile */
+  .mobile-extra-filters-wrapper {
+    display: none;
+  }
+  /* Make the filter container stack vertically */
+  .FilterContainer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  /* Adjust filter button group positioning to avoid cutoff */
+  .filter-button-group {
+    margin-top: 10px;
+    position: static;
+  }
+  /* Hide the table header on mobile */
+  table thead {
+    display: none;
+  }
+  /* Mobile cell styling for table rows */
+  .mobile-cell {
+    display: block;
+    width: 100%;
+  }
+  .mobile-preview {
+    margin-bottom: 8px;
+  }
+  .mobile-preview iframe {
+    width: 100%;
+    height: auto;
+  }
+  .mobile-title {
+    margin-bottom: 8px;
+    font-size: 16px;
+    font-weight: bold;
+  }
+  .mobile-rating {
+    font-size: 14px;
+  }
+  /* Ensure the mobile sort dropdown and extra filters toggle are visible */
+  #mobile-sort-dropdown {
+    display: block;
+    margin-bottom: 10px;
+  }
+  .mobile-toggle-btn {
+    display: block;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    text-align: center;
+    line-height: 40px;
+    border-radius: 50%;
+  }
+}
+
+/* -----------------------
+   Desktop overrides
+------------------------- */
+@media (min-width: 769px) {
+  #mobile-sort-dropdown {
+    display: none;
+  }
+  #mobile-filters-toggle {
+    display: none;
+  }
+  .mobile-extra-filters-wrapper {
+    display: inline-flex;
+    gap: 16px;
+  }
+  .FilterContainer {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    overflow-x: auto;
+    gap: 16px;
+  }
+  /* Each filter group: label above input, but placed horizontally side by side */
+  .filter-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  /* The filter/shuffle button group also in-line */
+  .FilterContainer > .filter-button-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
 }

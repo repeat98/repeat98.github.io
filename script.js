@@ -31,7 +31,9 @@ function parseYearRange() {
     return { min: parseInt(match[1], 10), max: parseInt(match[2], 10) };
   } else {
     const single = parseInt(yr, 10);
-    return Number.isInteger(single) ? { min: single, max: single } : { min: -Infinity, max: Infinity };
+    return Number.isInteger(single)
+      ? { min: single, max: single }
+      : { min: -Infinity, max: Infinity };
   }
 }
 
@@ -42,7 +44,9 @@ function parseRangeInput(rangeStr) {
     return { min: parseFloat(match[1]), max: parseFloat(match[2]) };
   } else {
     const single = parseFloat(rangeStr);
-    return !isNaN(single) ? { min: single, max: single } : { min: -Infinity, max: Infinity };
+    return !isNaN(single)
+      ? { min: single, max: single }
+      : { min: -Infinity, max: Infinity };
   }
 }
 
@@ -51,44 +55,56 @@ async function fetchReleases({ page = 1 } = {}) {
   const selectedGenre = document.getElementById("genre").value;
   const selectedStyle = document.getElementById("style").value;
   const { min: yearMin, max: yearMax } = parseYearRange();
-  const ratingRange = parseRangeInput(document.getElementById("rating_range").value.trim());
-  const ratingCountRange = parseRangeInput(document.getElementById("rating_count_range").value.trim());
-  const priceRange = parseRangeInput(document.getElementById("price_range").value.trim());
-  
+  const ratingRange = parseRangeInput(
+    document.getElementById("rating_range").value.trim()
+  );
+  const ratingCountRange = parseRangeInput(
+    document.getElementById("rating_count_range").value.trim()
+  );
+  const priceRange = parseRangeInput(
+    document.getElementById("price_range").value.trim()
+  );
+
   let query = supabaseClient
-    .from('releases')
-    .select('*', { count: 'exact' });
-  
-  // Apply search query filtering if provided
+    .from("releases")
+    .select("*", { count: "exact" });
+
   const searchQuery = document.getElementById("searchInput").value.trim();
-  if(searchQuery) {
-    query = query.ilike('title', `%${searchQuery}%`);
+  if (searchQuery) {
+    query = query.ilike("title", `%${searchQuery}%`);
   }
-  
+
   if (selectedGenre) {
-    query = query.ilike('genre', `%${selectedGenre}%`);
+    query = query.ilike("genre", `%${selectedGenre}%`);
   }
   if (selectedStyle) {
-    query = query.ilike('style', `%${selectedStyle}%`);
+    query = query.ilike("style", `%${selectedStyle}%`);
   }
-  if (yearMin !== -Infinity) query = query.gte('year', yearMin);
-  if (yearMax !== Infinity)  query = query.lte('year', yearMax);
-  if (ratingRange.min !== -Infinity) query = query.gte('average_rating', ratingRange.min);
-  if (ratingRange.max !== Infinity)  query = query.lte('average_rating', ratingRange.max);
-  if (ratingCountRange.min !== -Infinity) query = query.gte('rating_count', ratingCountRange.min);
-  if (ratingCountRange.max !== Infinity)  query = query.lte('rating_count', ratingCountRange.max);
-  if (priceRange.min !== -Infinity) query = query.gte('lowest_price', priceRange.min);
-  if (priceRange.max !== Infinity)  query = query.lte('lowest_price', priceRange.max);
-  
-  // Apply sorting
+  if (yearMin !== -Infinity) query = query.gte("year", yearMin);
+  if (yearMax !== Infinity) query = query.lte("year", yearMax);
+  if (ratingRange.min !== -Infinity)
+    query = query.gte("average_rating", ratingRange.min);
+  if (ratingRange.max !== Infinity)
+    query = query.lte("average_rating", ratingRange.max);
+  if (ratingCountRange.min !== -Infinity)
+    query = query.gte("rating_count", ratingCountRange.min);
+  if (ratingCountRange.max !== Infinity)
+    query = query.lte("rating_count", ratingCountRange.max);
+  if (priceRange.min !== -Infinity)
+    query = query.gte("lowest_price", priceRange.min);
+  if (priceRange.max !== Infinity)
+    query = query.lte("lowest_price", priceRange.max);
+
   if (sortConfig.key) {
-    query = query.order(sortConfig.key, { ascending: sortConfig.order === 'asc' });
+    query = query.order(sortConfig.key, {
+      ascending: sortConfig.order === "asc",
+    });
   }
-  
+
   const start = (page - 1) * pageSize;
   const end = start + pageSize - 1;
   query = query.range(start, end);
-  
+
   const { data, count, error } = await query;
   if (error) {
     console.error("Error fetching releases data:", error);
@@ -113,35 +129,46 @@ async function fetchShuffleReleases() {
   const selectedGenre = document.getElementById("genre").value;
   const selectedStyle = document.getElementById("style").value;
   const { min: yearMin, max: yearMax } = parseYearRange();
-  const ratingRange = parseRangeInput(document.getElementById("rating_range").value.trim());
-  const ratingCountRange = parseRangeInput(document.getElementById("rating_count_range").value.trim());
-  const priceRange = parseRangeInput(document.getElementById("price_range").value.trim());
-  
+  const ratingRange = parseRangeInput(
+    document.getElementById("rating_range").value.trim()
+  );
+  const ratingCountRange = parseRangeInput(
+    document.getElementById("rating_count_range").value.trim()
+  );
+  const priceRange = parseRangeInput(
+    document.getElementById("price_range").value.trim()
+  );
+
   let query = supabaseClient
-    .from('releases')
-    .select('*', { count: 'exact' });
-  
-  // Apply search query filtering if provided
+    .from("releases")
+    .select("*", { count: "exact" });
+
   const searchQuery = document.getElementById("searchInput").value.trim();
-  if(searchQuery) {
-    query = query.ilike('title', `%${searchQuery}%`);
+  if (searchQuery) {
+    query = query.ilike("title", `%${searchQuery}%`);
   }
-  
+
   if (selectedGenre) {
-    query = query.ilike('genre', `%${selectedGenre}%`);
+    query = query.ilike("genre", `%${selectedGenre}%`);
   }
   if (selectedStyle) {
-    query = query.ilike('style', `%${selectedStyle}%`);
+    query = query.ilike("style", `%${selectedStyle}%`);
   }
-  if (yearMin !== -Infinity) query = query.gte('year', yearMin);
-  if (yearMax !== Infinity)  query = query.lte('year', yearMax);
-  if (ratingRange.min !== -Infinity) query = query.gte('average_rating', ratingRange.min);
-  if (ratingRange.max !== Infinity)  query = query.lte('average_rating', ratingRange.max);
-  if (ratingCountRange.min !== -Infinity) query = query.gte('rating_count', ratingCountRange.min);
-  if (ratingCountRange.max !== Infinity)  query = query.lte('rating_count', ratingCountRange.max);
-  if (priceRange.min !== -Infinity) query = query.gte('lowest_price', priceRange.min);
-  if (priceRange.max !== Infinity)  query = query.lte('lowest_price', priceRange.max);
-  
+  if (yearMin !== -Infinity) query = query.gte("year", yearMin);
+  if (yearMax !== Infinity) query = query.lte("year", yearMax);
+  if (ratingRange.min !== -Infinity)
+    query = query.gte("average_rating", ratingRange.min);
+  if (ratingRange.max !== Infinity)
+    query = query.lte("average_rating", ratingRange.max);
+  if (ratingCountRange.min !== -Infinity)
+    query = query.gte("rating_count", ratingCountRange.min);
+  if (ratingCountRange.max !== Infinity)
+    query = query.lte("rating_count", ratingCountRange.max);
+  if (priceRange.min !== -Infinity)
+    query = query.gte("lowest_price", priceRange.min);
+  if (priceRange.max !== Infinity)
+    query = query.lte("lowest_price", priceRange.max);
+
   const { data: allData, count, error } = await query;
   if (error) {
     console.error("Error fetching shuffle data:", error);
@@ -151,29 +178,35 @@ async function fetchShuffleReleases() {
   if (count > shuffleSize) {
     const randomOffset = Math.floor(Math.random() * (count - shuffleSize + 1));
     let rangeQuery = supabaseClient
-      .from('releases')
-      .select('*')
+      .from("releases")
+      .select("*")
       .range(randomOffset, randomOffset + shuffleSize - 1);
-      
-    if(searchQuery) {
-      rangeQuery = rangeQuery.ilike('title', `%${searchQuery}%`);
+
+    if (searchQuery) {
+      rangeQuery = rangeQuery.ilike("title", `%${searchQuery}%`);
     }
-      
+
     if (selectedGenre) {
-      rangeQuery = rangeQuery.ilike('genre', `%${selectedGenre}%`);
+      rangeQuery = rangeQuery.ilike("genre", `%${selectedGenre}%`);
     }
     if (selectedStyle) {
-      rangeQuery = rangeQuery.ilike('style', `%${selectedStyle}%`);
+      rangeQuery = rangeQuery.ilike("style", `%${selectedStyle}%`);
     }
-    if (yearMin !== -Infinity) rangeQuery = rangeQuery.gte('year', yearMin);
-    if (yearMax !== Infinity)  rangeQuery = rangeQuery.lte('year', yearMax);
-    if (ratingRange.min !== -Infinity) rangeQuery = rangeQuery.gte('average_rating', ratingRange.min);
-    if (ratingRange.max !== Infinity)  rangeQuery = rangeQuery.lte('average_rating', ratingRange.max);
-    if (ratingCountRange.min !== -Infinity) rangeQuery = rangeQuery.gte('rating_count', ratingCountRange.min);
-    if (ratingCountRange.max !== Infinity)  rangeQuery = rangeQuery.lte('rating_count', ratingCountRange.max);
-    if (priceRange.min !== -Infinity) rangeQuery = rangeQuery.gte('lowest_price', priceRange.min);
-    if (priceRange.max !== Infinity)  rangeQuery = rangeQuery.lte('lowest_price', priceRange.max);
-    
+    if (yearMin !== -Infinity) rangeQuery = rangeQuery.gte("year", yearMin);
+    if (yearMax !== Infinity) rangeQuery = rangeQuery.lte("year", yearMax);
+    if (ratingRange.min !== -Infinity)
+      rangeQuery = rangeQuery.gte("average_rating", ratingRange.min);
+    if (ratingRange.max !== Infinity)
+      rangeQuery = rangeQuery.lte("average_rating", ratingRange.max);
+    if (ratingCountRange.min !== -Infinity)
+      rangeQuery = rangeQuery.gte("rating_count", ratingCountRange.min);
+    if (ratingCountRange.max !== Infinity)
+      rangeQuery = rangeQuery.lte("rating_count", ratingCountRange.max);
+    if (priceRange.min !== -Infinity)
+      rangeQuery = rangeQuery.gte("lowest_price", priceRange.min);
+    if (priceRange.max !== Infinity)
+      rangeQuery = rangeQuery.lte("lowest_price", priceRange.max);
+
     const { data, error: err } = await rangeQuery;
     if (err) {
       console.error("Error fetching shuffle data with range:", err);
@@ -197,8 +230,8 @@ async function loadShuffleData() {
 // ------------------ Initialize Filters Dropdowns ------------------
 async function initializeFilters() {
   const { data, error } = await supabaseClient
-    .from('releases')
-    .select('genre, style')
+    .from("releases")
+    .select("genre, style")
     .limit(2000);
   if (error) {
     console.error("Error loading genres/styles:", error);
@@ -206,14 +239,14 @@ async function initializeFilters() {
   }
   const genresSet = new Set();
   const stylesSet = new Set();
-  data.forEach(row => {
+  data.forEach((row) => {
     if (row.genre) {
-      row.genre.split(",").forEach(g => {
+      row.genre.split(",").forEach((g) => {
         if (g.trim()) genresSet.add(g.trim());
       });
     }
     if (row.style) {
-      row.style.split(",").forEach(s => {
+      row.style.split(",").forEach((s) => {
         if (s.trim()) stylesSet.add(s.trim());
       });
     }
@@ -223,7 +256,7 @@ async function initializeFilters() {
 
   const genreSelect = document.getElementById("genre");
   genreSelect.innerHTML = '<option value="">All Genres</option>';
-  genresArray.forEach(genre => {
+  genresArray.forEach((genre) => {
     const option = document.createElement("option");
     option.value = genre;
     option.textContent = genre;
@@ -232,7 +265,7 @@ async function initializeFilters() {
 
   const styleSelect = document.getElementById("style");
   styleSelect.innerHTML = '<option value="">All Styles</option>';
-  stylesArray.forEach(style => {
+  stylesArray.forEach((style) => {
     const option = document.createElement("option");
     option.value = style;
     option.textContent = style;
@@ -242,171 +275,281 @@ async function initializeFilters() {
 
 // ------------------ Render Table ------------------
 function renderTable() {
+  const isMobile = window.innerWidth <= 768;
   const tbody = document.getElementById("releases-table-body");
   tbody.innerHTML = "";
   document.getElementById("results-count").textContent = `Showing ${totalRecords} result(s)`;
 
   if (filteredData.length === 0) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="11" class="no-results">
+    tbody.innerHTML = `<tr><td class="no-results">
           <i class="bi bi-exclamation-triangle-fill"></i>
           <p>No results found.</p>
-        </td>
-      </tr>
-    `;
+        </td></tr>`;
     return;
   }
 
-  filteredData.forEach(release => {
+  filteredData.forEach((release) => {
     const tr = document.createElement("tr");
     tr.setAttribute("data-id", release.id);
 
-    const interactedReleases = JSON.parse(localStorage.getItem("interactedReleases")) || [];
+    const interactedReleases =
+      JSON.parse(localStorage.getItem("interactedReleases")) || [];
     if (interactedReleases.includes(release.id)) {
       tr.classList.add("greyed-out");
     }
 
-    const tdTitle = document.createElement("td");
-    const titleDiv = document.createElement("div");
-    titleDiv.className = "d-flex align-items-center";
+    if (isMobile) {
+      // Mobile: render one single cell containing preview, title, and rating in vertical layout.
+      const tdMobile = document.createElement("td");
+      tdMobile.className = "mobile-cell";
 
-    const titleLink = document.createElement("a");
-    titleLink.href = release.link;
-    titleLink.target = "_blank";
-    titleLink.rel = "noopener noreferrer";
-    titleLink.className = "text-decoration-none text-primary fw-semibold";
-    titleLink.textContent = release.title;
-    titleLink.addEventListener("click", () => {
-      markAsInteracted(release.id);
-      tr.classList.add("greyed-out");
-      trackReleaseLinkClick(release);
-    });
-
-    const copyBtn = document.createElement("button");
-    copyBtn.className = "copy-btn";
-    copyBtn.setAttribute("data-title", release.title);
-    copyBtn.title = "Copy Title";
-    copyBtn.innerHTML = '<i class="bi bi-clipboard"></i>';
-    copyBtn.addEventListener("click", () => {
-      navigator.clipboard.writeText(release.title).then(() => {
-        markAsInteracted(release.id);
-        tr.classList.add("greyed-out");
-        const originalTitle = copyBtn.title;
-        copyBtn.title = "Copied!";
-        const tooltip = new bootstrap.Tooltip(copyBtn, { container: 'body', trigger: 'manual' });
-        tooltip.show();
-        setTimeout(() => {
-          copyBtn.title = originalTitle;
-          tooltip.hide();
-          tooltip.dispose();
-        }, 1500);
-        trackCopyButtonClick(release);
-      });
-    });
-
-    titleDiv.appendChild(titleLink);
-    titleDiv.appendChild(copyBtn);
-    tdTitle.appendChild(titleDiv);
-    tr.appendChild(tdTitle);
-
-    const tdLabel = document.createElement("td");
-    tdLabel.textContent = release.label || "Unknown";
-    tr.appendChild(tdLabel);
-
-    const tdYear = document.createElement("td");
-    tdYear.className = "text-center";
-    tdYear.textContent = release.year || "N/A";
-    tr.appendChild(tdYear);
-
-    const tdGenreStyle = document.createElement("td");
-    if (release.genre) {
-      release.genre.split(",").forEach(g => {
-        const span = document.createElement("span");
-        span.className = "badge-genre";
-        span.textContent = g.trim();
-        tdGenreStyle.appendChild(span);
-      });
-    }
-    if (release.style) {
-      release.style.split(",").forEach(s => {
-        const span = document.createElement("span");
-        span.className = "badge-style";
-        span.textContent = s.trim();
-        tdGenreStyle.appendChild(span);
-      });
-    }
-    tr.appendChild(tdGenreStyle);
-
-    const tdRating = document.createElement("td");
-    tdRating.className = "text-center";
-    if (release.average_rating !== undefined && release.rating_count !== undefined) {
-      tdRating.innerHTML = `${generateStars(release.average_rating)} ${parseFloat(release.average_rating).toFixed(1)} (${release.rating_count})`;
-    } else {
-      tdRating.innerHTML = '<div class="text-muted">No rating</div>';
-    }
-    tr.appendChild(tdRating);
-
-    const tdRarity = document.createElement("td");
-    tdRarity.className = "text-center";
-    tdRarity.textContent = release.demand_coeff ? parseFloat(release.demand_coeff).toFixed(2) : "0.00";
-    tr.appendChild(tdRarity);
-
-    const tdGem = document.createElement("td");
-    tdGem.className = "text-center";
-    tdGem.textContent = release.gem_value ? parseFloat(release.gem_value).toFixed(2) : "0.00";
-    tr.appendChild(tdGem);
-
-    const tdHave = document.createElement("td");
-    tdHave.className = "text-center";
-    tdHave.textContent = release.have || 0;
-    tr.appendChild(tdHave);
-
-    const tdWant = document.createElement("td");
-    tdWant.className = "text-center";
-    tdWant.textContent = release.want || 0;
-    tr.appendChild(tdWant);
-
-    const tdPrice = document.createElement("td");
-    tdPrice.className = "text-center";
-    tdPrice.textContent = release.lowest_price !== undefined ? `${parseFloat(release.lowest_price).toFixed(2)}$` : "N/A";
-    tr.appendChild(tdPrice);
-
-    const tdPreview = document.createElement("td");
-    tdPreview.className = "text-center";
-    if (release.youtube_links) {
-      const links = release.youtube_links.split(",").map(l => l.trim()).filter(l => l);
-      if (links.length > 0) {
-        const yID = extractYouTubeID(links[0]);
-        if (yID) {
-          const iframe = document.createElement("iframe");
-          iframe.id = `youtube-player-${release.id}`;
-          iframe.className = "table-iframe";
-          iframe.loading = "lazy";
-          iframe.title = "YouTube video player";
-          iframe.setAttribute("aria-label", "YouTube video player");
-          iframe.src = `https://www.youtube.com/embed/${yID}?enablejsapi=1&rel=0&modestbranding=1`;
-          iframe.frameBorder = "0";
-          iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
-          iframe.allowFullscreen = true;
-          iframe.style.width = "220px";
-          iframe.style.height = "124px";
-          const iframeContainer = document.createElement("div");
-          iframeContainer.style.position = "relative";
-          iframeContainer.style.display = "inline-block";
-          iframeContainer.appendChild(iframe);
-          tdPreview.appendChild(iframeContainer);
+      // Preview
+      let previewContent = "";
+      if (release.youtube_links) {
+        const links = release.youtube_links
+          .split(",")
+          .map((l) => l.trim())
+          .filter((l) => l);
+        if (links.length > 0) {
+          const yID = extractYouTubeID(links[0]);
+          if (yID) {
+            previewContent = `<div class="mobile-preview">
+              <iframe id="youtube-player-${release.id}" class="table-iframe" loading="lazy" title="YouTube video player" aria-label="YouTube video player" src="https://www.youtube.com/embed/${yID}?enablejsapi=1&rel=0&modestbranding=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+            </div>`;
+          } else {
+            previewContent = `<div class="mobile-preview text-muted">Invalid YouTube link</div>`;
+          }
         } else {
-          tdPreview.innerHTML = '<div class="text-muted">Invalid YouTube link</div>';
+          previewContent = `<div class="mobile-preview text-muted">No YouTube links</div>`;
         }
       } else {
-        tdPreview.innerHTML = '<div class="text-muted">No YouTube links</div>';
+        previewContent = `<div class="mobile-preview text-muted">No YouTube links</div>`;
       }
-    } else {
-      tdPreview.innerHTML = '<div class="text-muted">No YouTube links</div>';
-    }
-    tr.appendChild(tdPreview);
 
+      // Title (with copy button)
+      const titleDiv = document.createElement("div");
+      titleDiv.className = "mobile-title";
+      const titleLink = document.createElement("a");
+      titleLink.href = release.link;
+      titleLink.target = "_blank";
+      titleLink.rel = "noopener noreferrer";
+      titleLink.className = "text-decoration-none text-primary fw-semibold";
+      titleLink.textContent = release.title;
+      titleLink.addEventListener("click", () => {
+        markAsInteracted(release.id);
+        tr.classList.add("greyed-out");
+        trackReleaseLinkClick(release);
+      });
+      const copyBtn = document.createElement("button");
+      copyBtn.className = "copy-btn";
+      copyBtn.setAttribute("data-title", release.title);
+      copyBtn.title = "Copy Title";
+      copyBtn.innerHTML = '<i class="bi bi-clipboard"></i>';
+      copyBtn.addEventListener("click", () => {
+        navigator.clipboard.writeText(release.title).then(() => {
+          markAsInteracted(release.id);
+          tr.classList.add("greyed-out");
+          const originalTitle = copyBtn.title;
+          copyBtn.title = "Copied!";
+          const tooltip = new bootstrap.Tooltip(copyBtn, {
+            container: "body",
+            trigger: "manual",
+          });
+          tooltip.show();
+          setTimeout(() => {
+            copyBtn.title = originalTitle;
+            tooltip.hide();
+            tooltip.dispose();
+          }, 1500);
+          trackCopyButtonClick(release);
+        });
+      });
+      titleDiv.appendChild(titleLink);
+      titleDiv.appendChild(copyBtn);
+
+      // Rating
+      const ratingDiv = document.createElement("div");
+      ratingDiv.className = "mobile-rating";
+      if (
+        release.average_rating !== undefined &&
+        release.rating_count !== undefined
+      ) {
+        ratingDiv.innerHTML = `${generateStars(
+          release.average_rating
+        )} ${parseFloat(release.average_rating).toFixed(
+          1
+        )} (${release.rating_count})`;
+      } else {
+        ratingDiv.innerHTML = `<div class="text-muted">No rating</div>`;
+      }
+
+      tdMobile.innerHTML = previewContent;
+      tdMobile.appendChild(titleDiv);
+      tdMobile.appendChild(ratingDiv);
+      tr.appendChild(tdMobile);
+    } else {
+      // Desktop: render full row (unchanged)
+      const tdTitle = document.createElement("td");
+      const titleDiv = document.createElement("div");
+      titleDiv.className = "d-flex align-items-center";
+      const titleLink = document.createElement("a");
+      titleLink.href = release.link;
+      titleLink.target = "_blank";
+      titleLink.rel = "noopener noreferrer";
+      titleLink.className = "text-decoration-none text-primary fw-semibold";
+      titleLink.textContent = release.title;
+      titleLink.addEventListener("click", () => {
+        markAsInteracted(release.id);
+        tr.classList.add("greyed-out");
+        trackReleaseLinkClick(release);
+      });
+      const copyBtn = document.createElement("button");
+      copyBtn.className = "copy-btn";
+      copyBtn.setAttribute("data-title", release.title);
+      copyBtn.title = "Copy Title";
+      copyBtn.innerHTML = '<i class="bi bi-clipboard"></i>';
+      copyBtn.addEventListener("click", () => {
+        navigator.clipboard.writeText(release.title).then(() => {
+          markAsInteracted(release.id);
+          tr.classList.add("greyed-out");
+          const originalTitle = copyBtn.title;
+          copyBtn.title = "Copied!";
+          const tooltip = new bootstrap.Tooltip(copyBtn, {
+            container: "body",
+            trigger: "manual",
+          });
+          tooltip.show();
+          setTimeout(() => {
+            copyBtn.title = originalTitle;
+            tooltip.hide();
+            tooltip.dispose();
+          }, 1500);
+          trackCopyButtonClick(release);
+        });
+      });
+      titleDiv.appendChild(titleLink);
+      titleDiv.appendChild(copyBtn);
+      tdTitle.appendChild(titleDiv);
+      tr.appendChild(tdTitle);
+
+      const tdLabel = document.createElement("td");
+      tdLabel.textContent = release.label || "Unknown";
+      tr.appendChild(tdLabel);
+
+      const tdYear = document.createElement("td");
+      tdYear.className = "text-center";
+      tdYear.textContent = release.year || "N/A";
+      tr.appendChild(tdYear);
+
+      const tdGenreStyle = document.createElement("td");
+      if (release.genre) {
+        release.genre.split(",").forEach((g) => {
+          const span = document.createElement("span");
+          span.className = "badge-genre";
+          span.textContent = g.trim();
+          tdGenreStyle.appendChild(span);
+        });
+      }
+      if (release.style) {
+        release.style.split(",").forEach((s) => {
+          const span = document.createElement("span");
+          span.className = "badge-style";
+          span.textContent = s.trim();
+          tdGenreStyle.appendChild(span);
+        });
+      }
+      tr.appendChild(tdGenreStyle);
+
+      const tdRating = document.createElement("td");
+      tdRating.className = "text-center";
+      if (
+        release.average_rating !== undefined &&
+        release.rating_count !== undefined
+      ) {
+        tdRating.innerHTML = `${generateStars(
+          release.average_rating
+        )} ${parseFloat(release.average_rating).toFixed(
+          1
+        )} (${release.rating_count})`;
+      } else {
+        tdRating.innerHTML = '<div class="text-muted">No rating</div>';
+      }
+      tr.appendChild(tdRating);
+
+      const tdRarity = document.createElement("td");
+      tdRarity.className = "text-center";
+      tdRarity.textContent = release.demand_coeff
+        ? parseFloat(release.demand_coeff).toFixed(2)
+        : "0.00";
+      tr.appendChild(tdRarity);
+
+      const tdGem = document.createElement("td");
+      tdGem.className = "text-center";
+      tdGem.textContent = release.gem_value
+        ? parseFloat(release.gem_value).toFixed(2)
+        : "0.00";
+      tr.appendChild(tdGem);
+
+      const tdHave = document.createElement("td");
+      tdHave.className = "text-center";
+      tdHave.textContent = release.have || 0;
+      tr.appendChild(tdHave);
+
+      const tdWant = document.createElement("td");
+      tdWant.className = "text-center";
+      tdWant.textContent = release.want || 0;
+      tr.appendChild(tdWant);
+
+      const tdPrice = document.createElement("td");
+      tdPrice.className = "text-center";
+      tdPrice.textContent =
+        release.lowest_price !== undefined
+          ? `${parseFloat(release.lowest_price).toFixed(2)}$`
+          : "N/A";
+      tr.appendChild(tdPrice);
+
+      const tdPreview = document.createElement("td");
+      tdPreview.className = "text-center";
+      if (release.youtube_links) {
+        const links = release.youtube_links
+          .split(",")
+          .map((l) => l.trim())
+          .filter((l) => l);
+        if (links.length > 0) {
+          const yID = extractYouTubeID(links[0]);
+          if (yID) {
+            const iframe = document.createElement("iframe");
+            iframe.id = `youtube-player-${release.id}`;
+            iframe.className = "table-iframe";
+            iframe.loading = "lazy";
+            iframe.title = "YouTube video player";
+            iframe.setAttribute("aria-label", "YouTube video player");
+            iframe.src = `https://www.youtube.com/embed/${yID}?enablejsapi=1&rel=0&modestbranding=1`;
+            iframe.frameBorder = "0";
+            iframe.allow =
+              "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
+            iframe.allowFullscreen = true;
+            iframe.style.width = "220px";
+            iframe.style.height = "124px";
+            const iframeContainer = document.createElement("div");
+            iframeContainer.style.position = "relative";
+            iframeContainer.style.display = "inline-block";
+            iframeContainer.appendChild(iframe);
+            tdPreview.appendChild(iframeContainer);
+          } else {
+            tdPreview.innerHTML =
+              '<div class="text-muted">Invalid YouTube link</div>';
+          }
+        } else {
+          tdPreview.innerHTML =
+            '<div class="text-muted">No YouTube links</div>';
+        }
+      } else {
+        tdPreview.innerHTML =
+          '<div class="text-muted">No YouTube links</div>';
+      }
+      tr.appendChild(tdPreview);
+    }
     tbody.appendChild(tr);
   });
 
@@ -449,7 +592,7 @@ function extractYouTubeID(url) {
 }
 
 function attachCopyHandlers() {
-  document.querySelectorAll(".copy-btn").forEach(btn => {
+  document.querySelectorAll(".copy-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const text = btn.getAttribute("data-title");
       if (text) {
@@ -465,7 +608,6 @@ function renderPagination() {
   pag.innerHTML = "";
   if (totalPages <= 1) return;
 
-  // Previous button
   const prevLi = document.createElement("li");
   prevLi.className = `page-item ${currentPage === 1 ? "disabled" : ""}`;
   const prevLink = document.createElement("a");
@@ -496,7 +638,6 @@ function renderPagination() {
     pag.appendChild(pageLi);
   }
 
-  // Next button
   const nextLi = document.createElement("li");
   nextLi.className = `page-item ${currentPage === totalPages ? "disabled" : ""}`;
   const nextLink = document.createElement("a");
@@ -513,7 +654,7 @@ function renderPagination() {
 
 // ------------------ Make Table Columns Resizable ------------------
 function makeTableResizable() {
-  document.querySelectorAll("th[data-column]").forEach(th => {
+  document.querySelectorAll("th[data-column]").forEach((th) => {
     const resizer = th.querySelector(".resizer");
     if (!resizer) return;
     let startX, startWidth;
@@ -541,7 +682,7 @@ function makeTableResizable() {
 
 function saveColumnWidths() {
   const widths = {};
-  document.querySelectorAll("th[data-column]").forEach(th => {
+  document.querySelectorAll("th[data-column]").forEach((th) => {
     widths[th.getAttribute("data-column")] = th.offsetWidth;
   });
   localStorage.setItem("tableColumnWidths", JSON.stringify(widths));
@@ -550,7 +691,7 @@ function saveColumnWidths() {
 function applySavedColumnWidths() {
   const saved = JSON.parse(localStorage.getItem("tableColumnWidths"));
   if (saved) {
-    document.querySelectorAll("th[data-column]").forEach(th => {
+    document.querySelectorAll("th[data-column]").forEach((th) => {
       const col = th.getAttribute("data-column");
       if (saved[col]) th.style.width = saved[col] + "px";
     });
@@ -558,7 +699,7 @@ function applySavedColumnWidths() {
 }
 
 // ------------------ Sorting ------------------
-document.querySelectorAll("th[data-sort]").forEach(header => {
+document.querySelectorAll("th[data-sort]").forEach((header) => {
   header.addEventListener("click", () => {
     const sortValue = header.getAttribute("data-sort");
     const colName = header.getAttribute("data-column");
@@ -600,13 +741,15 @@ function updateSortIndicators() {
     }
 
     if (sortConfig.key === "rating_coeff" && sortValue === "USER_RATING") {
-      header.innerHTML += sortConfig.order === "asc"
-        ? '<i class="bi bi-arrow-up sort-indicator" title="rating_coeff ascending"></i>'
-        : '<i class="bi bi-arrow-down sort-indicator" title="rating_coeff descending"></i>';
+      header.innerHTML +=
+        sortConfig.order === "asc"
+          ? '<i class="bi bi-arrow-up sort-indicator" title="rating_coeff ascending"></i>'
+          : '<i class="bi bi-arrow-down sort-indicator" title="rating_coeff descending"></i>';
     } else if (sortConfig.key === sortValue) {
-      header.innerHTML += sortConfig.order === "asc"
-        ? '<i class="bi bi-arrow-up sort-indicator"></i>'
-        : '<i class="bi bi-arrow-down sort-indicator"></i>';
+      header.innerHTML +=
+        sortConfig.order === "asc"
+          ? '<i class="bi bi-arrow-up sort-indicator"></i>'
+          : '<i class="bi bi-arrow-down sort-indicator"></i>';
     }
 
     const res = document.createElement("div");
@@ -626,13 +769,16 @@ function initializeYouTubePlayers() {
           new YT.Player(iframe, {
             events: {
               onStateChange: (event) => {
-                if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
+                if (
+                  event.data === YT.PlayerState.PAUSED ||
+                  event.data === YT.PlayerState.ENDED
+                ) {
                   markAsInteracted(release.id);
-                  const tr = iframe.closest('tr');
+                  const tr = iframe.closest("tr");
                   if (tr) tr.classList.add("greyed-out");
                 }
-              }
-            }
+              },
+            },
           });
         }
       }
@@ -646,33 +792,35 @@ function trackFilterApplied() {
   const style = document.getElementById("style").value;
   const yearRange = document.getElementById("year_range").value.trim();
   const ratingRange = document.getElementById("rating_range").value.trim();
-  const ratingCountRange = document.getElementById("rating_count_range").value.trim();
+  const ratingCountRange = document
+    .getElementById("rating_count_range")
+    .value.trim();
   const priceRange = document.getElementById("price_range").value.trim();
 
-  gtag('event', 'filter_applied', {
-    'genre': genre || 'All',
-    'style': style || 'All',
-    'year_range': yearRange || 'All',
-    'rating_range': ratingRange || 'All',
-    'rating_count_range': ratingCountRange || 'All',
-    'price_range': priceRange || 'All'
+  gtag("event", "filter_applied", {
+    genre: genre || "All",
+    style: style || "All",
+    year_range: yearRange || "All",
+    rating_range: ratingRange || "All",
+    rating_count_range: ratingCountRange || "All",
+    price_range: priceRange || "All",
   });
 }
 
 function trackCopyButtonClick(release) {
-  gtag('event', 'copy_title', {
-    'title': release.title,
-    'label': release.label || 'Unknown',
-    'release_id': release.id
+  gtag("event", "copy_title", {
+    title: release.title,
+    label: release.label || "Unknown",
+    release_id: release.id,
   });
 }
 
 function trackReleaseLinkClick(release) {
-  gtag('event', 'release_link_click', {
-    'title': release.title,
-    'label': release.label || 'Unknown',
-    'release_id': release.id,
-    'url': release.link
+  gtag("event", "release_link_click", {
+    title: release.title,
+    label: release.label || "Unknown",
+    release_id: release.id,
+    url: release.link,
   });
 }
 
@@ -687,6 +835,40 @@ function updateFilterButtons() {
   }
 }
 
+// ------------------ Mobile UI: Toggle Extra Filters ------------------
+document
+  .getElementById("mobile-filters-toggle")
+  .addEventListener("click", () => {
+    const extraFilters = document.querySelector(".mobile-extra-filters-wrapper");
+    const toggleBtn = document.getElementById("mobile-filters-toggle");
+    if (extraFilters.style.display === "block") {
+      extraFilters.style.display = "none";
+      toggleBtn.innerHTML = '<i class="bi bi-chevron-down"></i>';
+    } else {
+      extraFilters.style.display = "block";
+      toggleBtn.innerHTML = '<i class="bi bi-chevron-up"></i>';
+    }
+  });
+
+// ------------------ Mobile UI: Sort Dropdown ------------------
+document
+  .getElementById("mobile-sort-select")
+  .addEventListener("change", function () {
+    const value = this.value;
+    if (!value) return;
+    let parts = value.split("_");
+    let key = parts[0];
+    let order = parts[1];
+    if (key === "rating") key = "rating_coeff";
+    else if (key === "rarity") key = "demand_coeff";
+    else if (key === "gem") key = "gem_value";
+    else if (key === "have") key = "have";
+    else if (key === "want") key = "want";
+    else if (key === "price") key = "lowest_price";
+    sortConfig = { key: key, order: order };
+    loadData(1);
+  });
+
 // ------------------ DOMContentLoaded ------------------
 document.addEventListener("DOMContentLoaded", async () => {
   await initializeFilters();
@@ -700,7 +882,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   updateSortIndicators();
   updateFilterButtons();
 
-  // Submit filter form
   document.getElementById("filter-form").addEventListener("submit", (e) => {
     e.preventDefault();
     trackFilterApplied();
@@ -711,7 +892,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  // Update filters on change
   document.getElementById("genre").addEventListener("change", () => {
     trackFilterApplied();
     if (activeTab === "search") {
@@ -729,9 +909,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  // Dark Mode Toggle
   const darkModeToggle = document.getElementById("darkModeToggle");
-  if (localStorage.getItem("darkModeEnabled") === "true") {
+  if (
+    localStorage.getItem("darkModeEnabled") === "true" ||
+    !localStorage.getItem("darkModeEnabled")
+  ) {
     document.body.classList.add("dark-mode");
   } else {
     document.body.classList.remove("dark-mode");
@@ -746,7 +928,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  // Tab Toggle Event Listeners
   document.getElementById("tab-search").addEventListener("click", (e) => {
     e.preventDefault();
     activeTab = "search";
@@ -775,7 +956,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     loadShuffleData();
   });
 
-  // Listen for Enter key on search input
   document.getElementById("searchInput").addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -785,7 +965,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         document.getElementById("tab-shuffle").classList.remove("active");
         updateFilterButtons();
       }
-      // Trigger a new search
       loadData(1);
     }
   });
