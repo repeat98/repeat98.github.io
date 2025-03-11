@@ -130,9 +130,9 @@
   --table-header-bg: #C9C9C9;
   --table-header-text: #1F1F1F;
   /* In light mode, genre is darker and style is lighter – both a little lighter overall */
-  --badge-genre-bg: #808080;
+  --badge-genre-bg: #afafaf;
   --badge-genre-text: var(--text-color);
-  --badge-style-bg: #A0A0A0;
+  --badge-style-bg: #c1c1c1;
   --badge-style-text: var(--text-color);
   --input-bg: #C9C9C9;
   --input-border: #d5d7da;
