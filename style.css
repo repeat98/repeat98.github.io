@@ -1,6 +1,3 @@
-/* -----------------------
-   Right–aligned toggle group 
-------------------------- */
 .right-toggle-group {
   display: flex;
   align-items: center;
@@ -274,6 +271,11 @@ body.dark-mode .sun-icon {
   margin-bottom: 2px;
   color: var(--text-color);
 }
+
+/* 
+  Fix for iOS select/input fields being rendered too small:
+  Add min-height and remove default iOS appearance 
+*/
 .filter-input,
 .filter-select {
   width: 100%;
@@ -285,6 +287,10 @@ body.dark-mode .sun-icon {
   color: var(--text-color);
   padding: 8px 10px;
   transition: border-color var(--transition-speed), box-shadow var(--transition-speed);
+  min-height: 36px; /* Ensures a comfortable tap target on iPhones */
+  -webkit-appearance: none; /* Remove default iOS select arrow styling */
+  -moz-appearance: none;
+  appearance: none;
 }
 
 .filter-input::placeholder {
