@@ -154,9 +154,9 @@ body.dark-mode {
   --table-header-bg: #3A3A3A;
   --table-header-text: #ffffff;
   /* In dark mode, reverse: genre is lighter and style is darker */
-  --badge-genre-bg: #A0A0A0;
+  --badge-genre-bg: #696969;
   --badge-genre-text: var(--text-color);
-  --badge-style-bg: #808080;
+  --badge-style-bg: #3f3f3f;
   --badge-style-text: var(--text-color);
   --input-bg: #2D2D2D;
   --input-border: #555;
