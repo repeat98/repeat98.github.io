@@ -609,6 +609,16 @@ a:active,
   #mobile-filters-toggle.open i {
     transform: rotate(180deg);
   }
+  /* --- Mobile input field and layout optimizations --- */
+  .filter-input,
+  .filter-select {
+    font-size: 14px;
+    padding: 10px 12px;
+    min-height: 44px;
+  }
+  .MainContainer {
+    padding: 8px;
+  }
 }
 
 /* -----------------------
