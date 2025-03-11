@@ -1,4 +1,3 @@
-// ------------------ Supabase Integration ------------------
 const supabaseUrl = "https://oghdrmtorpeqaewttckr.supabase.co";
 const supabaseKey =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9naGRybXRvcnBlcWFld3R0Y2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDExNjc4OTksImV4cCI6MjA1Njc0Mzg5OX0.HW5aD19Hy__kpOLp5JHi8HXLzl7D6_Tu4UNyB3mNAHs";
@@ -1038,7 +1037,8 @@ async function importDiscogsCollection(file) {
 ------------------------- */
 function updateFilterButtons() {
   if (activeTab === "bookmark") {
-    document.getElementById("filter-wrapper").style.display = "none";
+    // Now show the filter box for the bookmark tab
+    document.getElementById("filter-wrapper").style.display = "block";
     document.getElementById("bookmark-actions").style.display = "block";
     // Keep pagination visible in Bookmark tab
     document.getElementById("pagination").style.display = "block";
@@ -1167,12 +1167,12 @@ function trackReleaseLinkClick(release) {
 
 /* -----------------------
    Right–aligned toggle group 
-------------------------- */
+----------------------- */
 // (Additional CSS styling is defined in style.css)
 
 /* -----------------------
    Cookie Popup Functionality
-------------------------- */
+----------------------- */
 document.addEventListener("DOMContentLoaded", function() {
   const cookiePopup = document.getElementById("cookie-popup");
   const cookieAcceptBtn = document.getElementById("cookie-accept-btn");
