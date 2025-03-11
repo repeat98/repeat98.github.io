@@ -367,6 +367,48 @@ function loadBookmarks(page = 1) {
   document.getElementById("pagination").style.display = "block";
 }
 
+// ------------------ Merge Imported User Data with Existing ------------------
+async function mergeUserData(file) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const imported = JSON.parse(e.target.result);
+      if (imported && typeof imported === 'object') {
+        // Merge bookmarkedReleases arrays (deduplicate by id)
+        const currentBookmarks = getBookmarkedReleases();
+        const importedBookmarks = imported.bookmarkedReleases || [];
+        const mergedBookmarks = [...currentBookmarks];
+        importedBookmarks.forEach(item => {
+          if (!mergedBookmarks.some(b => String(b.id) === String(item.id))) {
+            mergedBookmarks.push(item);
+          }
+        });
+        localStorage.setItem("bookmarkedReleases", JSON.stringify(mergedBookmarks));
+
+        // Merge interactedReleases arrays (union)
+        const currentInteracted = JSON.parse(localStorage.getItem("interactedReleases") || "[]");
+        const importedInteracted = imported.interactedReleases || [];
+        const mergedInteracted = Array.from(new Set([...currentInteracted, ...importedInteracted]));
+        localStorage.setItem("interactedReleases", JSON.stringify(mergedInteracted));
+
+        // Optionally merge tableColumnWidths if needed
+        // Here we simply keep the current settings
+        // Optionally, you might want to merge darkModeEnabled and sortConfig as well
+
+        if (activeTab === "bookmark") {
+          loadBookmarks(currentPage);
+        }
+        alert("Merge Completed: Imported data has been merged with your current user data.");
+      } else {
+        alert("Invalid file format for merging.");
+      }
+    } catch (err) {
+      alert("Error reading merge file.");
+    }
+  };
+  reader.readAsText(file);
+}
+
 // ------------------ Initialize Filters Dropdown ------------------
 async function initializeFilters() {
   const { data, error } = await supabaseClient.from("releases").select("genre, style").limit(2000);
@@ -1033,6 +1075,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const file = e.target.files[0];
     if (file) {
       importUserData(file);
+    }
+  });
+  // New event listener for Merge User Data button
+  document.getElementById("merge-btn").addEventListener("click", () => {
+    document.getElementById("merge-file").click();
+  });
+  document.getElementById("merge-file").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      mergeUserData(file);
     }
   });
 });

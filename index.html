@@ -265,7 +265,7 @@
         </div>
       </div>
 
-      <!-- Bookmark Actions: Export & Import (now placed below the filter box) -->
+      <!-- Bookmark Actions: Export, Import & Merge (now placed below the filter box) -->
       <div
         class="container MainContainer"
         id="bookmark-actions"
@@ -278,13 +278,22 @@
           <button id="import-btn" class="btn btn-secondary">
             <i class="bi bi-upload"></i> Import User Data
           </button>
+          <button id="merge-btn" class="btn btn-secondary">
+            <i class="bi bi-files"></i> Merge User Data
+          </button>
           <button id="import-discogs-btn" class="btn btn-secondary">
             <i class="bi bi-upload"></i> Import Discogs Collection
           </button>
-          <!-- Hidden file inputs for importing -->
+          <!-- Hidden file inputs for importing and merging -->
           <input
             type="file"
             id="import-file"
+            accept=".json"
+            style="display: none"
+          />
+          <input
+            type="file"
+            id="merge-file"
             accept=".json"
             style="display: none"
           />
