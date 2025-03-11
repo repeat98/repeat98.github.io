@@ -38,12 +38,21 @@ function isBookmarked(id) {
 
 function toggleBookmark(release) {
   let bookmarks = getBookmarkedReleases();
+  let action;
   if (isBookmarked(release.id)) {
     bookmarks = bookmarks.filter(r => r.id !== release.id);
+    action = "removed";
   } else {
     bookmarks.push(release);
+    action = "added";
   }
   saveBookmarkedReleases(bookmarks);
+  // Track bookmark toggle event over GA
+  gtag("event", "bookmark_toggle", {
+    action: action,
+    release_id: release.id,
+    title: release.title,
+  });
   if (activeTab === "bookmark") {
     loadBookmarks(currentPage);
   }
@@ -916,6 +925,10 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("searchInput").addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
+      // Track search query event over GA
+      gtag("event", "search_query", {
+        query: document.getElementById("searchInput").value.trim()
+      });
       if (activeTab !== "search") {
         activeTab = "search";
         document.getElementById("tab-search").classList.add("active");
