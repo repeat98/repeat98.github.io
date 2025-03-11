@@ -1171,18 +1171,23 @@ function updateFilterButtons() {
     document.getElementById("filter-wrapper").style.display = "block";
     document.getElementById("bookmark-actions").style.display = "none";
   }
+  
   if (activeTab === "search") {
     document.querySelector(".filter-btn").style.display = "inline-block";
     document.querySelector(".shuffle-btn").style.display = "none";
     document.getElementById("personalized-toggle-container").style.display = "none";
-    // Keep pagination visible in Search tab
     document.getElementById("pagination").style.display = "block";
   } else if (activeTab === "shuffle") {
     document.querySelector(".filter-btn").style.display = "none";
     document.querySelector(".shuffle-btn").style.display = "inline-block";
     document.getElementById("personalized-toggle-container").style.display = "flex";
-    // Remove pagination in the Shuffle tab
     document.getElementById("pagination").style.display = "none";
+  } else if (activeTab === "bookmark") {
+    // When in bookmark tab, show the filter button and hide the shuffle button.
+    document.querySelector(".filter-btn").style.display = "inline-block";
+    document.querySelector(".shuffle-btn").style.display = "none";
+    document.getElementById("personalized-toggle-container").style.display = "none";
+    document.getElementById("pagination").style.display = "block";
   }
 }
 
