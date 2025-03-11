@@ -491,9 +491,14 @@ a:active,
     flex-direction: column;
     align-items: stretch;
   }
+  /* Right-align Filter and Shuffle buttons on mobile */
   .filter-button-group {
     margin-top: 10px;
     position: static;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    width: 100%;
   }
   table thead {
     display: none;
@@ -557,6 +562,26 @@ a:active,
     align-items: center;
     margin-bottom: 8px;
     font-size: 1.5rem;
+  }
+  /* Chevron for filter box toggle */
+  #mobile-filters-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto; /* Force the chevron toggle to the far right */
+    background: transparent;
+    border: none;
+    color: var(--text-color);
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  #mobile-filters-toggle i {
+    margin-left: 4px;
+    transition: transform 0.3s;
+  }
+  /* Example rotation if you apply a class like .open to rotate the chevron */
+  #mobile-filters-toggle.open i {
+    transform: rotate(180deg);
   }
 }
 
