@@ -50,7 +50,7 @@
   transition: width 0.3s, padding 0.3s;
 }
 .tab-icon.active input[type="text"] {
-  width: 150px;
+  width: 90px;
   padding-right: 8px;
 }
 
