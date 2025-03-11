@@ -281,18 +281,66 @@ async function loadShuffleData() {
   }
 }
 
-// ------------------ Load Bookmarked Releases ------------------
+// ------------------ Load Bookmarked Releases (Updated with Filtering) ------------------
 function loadBookmarks(page = 1) {
   let bookmarks = getBookmarkedReleases();
-  // If no explicit sort is set, sort by bookmarkedAt (most recent first)
+
+  // Apply filter criteria from the filter box:
+  const searchQuery = document.getElementById("searchInput").value.trim().toLowerCase();
+  const selectedGenre = document.getElementById("genre").value;
+  const selectedStyle = document.getElementById("style").value;
+  const { min: yearMin, max: yearMax } = parseYearRange();
+  const ratingRange = parseRangeInput(document.getElementById("rating_range").value.trim());
+  const ratingCountRange = parseRangeInput(document.getElementById("rating_count_range").value.trim());
+  const priceRange = parseRangeInput(document.getElementById("price_range").value.trim());
+
+  bookmarks = bookmarks.filter(release => {
+    let pass = true;
+    if (searchQuery && release.title) {
+      if (!release.title.toLowerCase().includes(searchQuery)) pass = false;
+    }
+    if (selectedGenre) {
+      if (release.genre) {
+        const genres = release.genre.split(",").map(g => g.trim());
+        if (!genres.includes(selectedGenre)) pass = false;
+      } else {
+        pass = false;
+      }
+    }
+    if (selectedStyle) {
+      if (release.style) {
+        const styles = release.style.split(",").map(s => s.trim());
+        if (!styles.includes(selectedStyle)) pass = false;
+      } else {
+        pass = false;
+      }
+    }
+    if (release.year) {
+      const yr = parseInt(release.year, 10);
+      if (yr < yearMin || yr > yearMax) pass = false;
+    }
+    if (release.average_rating !== undefined) {
+      const rating = parseFloat(release.average_rating);
+      if (rating < ratingRange.min || rating > ratingRange.max) pass = false;
+    }
+    if (release.rating_count !== undefined) {
+      const count = parseFloat(release.rating_count);
+      if (count < ratingCountRange.min || count > ratingCountRange.max) pass = false;
+    }
+    if (release.lowest_price !== undefined) {
+      const price = parseFloat(release.lowest_price);
+      if (price < priceRange.min || price > priceRange.max) pass = false;
+    }
+    return pass;
+  });
+
+  // Sort bookmarks (default: most recent bookmarked first)
   if (!sortConfig || sortConfig.key === "title") {
     bookmarks.sort((a, b) => new Date(b.bookmarkedAt) - new Date(a.bookmarkedAt));
   } else {
-    // Otherwise sort based on the chosen sortConfig
     bookmarks.sort((a, b) => {
       let aVal = a[sortConfig.key];
       let bVal = b[sortConfig.key];
-      // For string comparisons on title or label
       if (sortConfig.key === "title" || sortConfig.key === "label") {
         aVal = aVal ? aVal.toLowerCase() : "";
         bVal = bVal ? bVal.toLowerCase() : "";
@@ -300,7 +348,6 @@ function loadBookmarks(page = 1) {
         aVal = parseFloat(aVal) || 0;
         bVal = parseFloat(bVal) || 0;
       } else if (sortConfig.key === "rating_coeff") {
-        // For user rating, we can use average_rating
         aVal = parseFloat(a.average_rating) || 0;
         bVal = parseFloat(b.average_rating) || 0;
       }
@@ -883,6 +930,8 @@ document.addEventListener("DOMContentLoaded", () => {
       loadData(1);
     } else if (activeTab === "shuffle") {
       loadShuffleData();
+    } else if (activeTab === "bookmark") {
+      loadBookmarks(1);
     }
   });
   document.getElementById("genre").addEventListener("change", () => {
@@ -891,6 +940,8 @@ document.addEventListener("DOMContentLoaded", () => {
       loadData(1);
     } else if (activeTab === "shuffle") {
       loadShuffleData();
+    } else if (activeTab === "bookmark") {
+      loadBookmarks(1);
     }
   });
   document.getElementById("style").addEventListener("change", () => {
@@ -899,6 +950,8 @@ document.addEventListener("DOMContentLoaded", () => {
       loadData(1);
     } else if (activeTab === "shuffle") {
       loadShuffleData();
+    } else if (activeTab === "bookmark") {
+      loadBookmarks(1);
     }
   });
   const darkModeToggle = document.getElementById("darkModeToggle");
@@ -1037,7 +1090,7 @@ async function importDiscogsCollection(file) {
 ------------------------- */
 function updateFilterButtons() {
   if (activeTab === "bookmark") {
-    // Now show the filter box for the bookmark tab
+    // For bookmarks, show both the filter box and the bookmark-actions
     document.getElementById("filter-wrapper").style.display = "block";
     document.getElementById("bookmark-actions").style.display = "block";
     // Keep pagination visible in Bookmark tab
