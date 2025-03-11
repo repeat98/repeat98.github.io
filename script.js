@@ -244,13 +244,15 @@ async function loadPersonalizedShuffleData() {
     if (release.genre) {
       release.genre.split(",").forEach(g => {
         const genre = g.trim();
-        if (preferredGenres[genre]) score += preferredGenres[genre] * 0.5;
+        // Increased weighting: multiplier changed from 0.5 to 1.0
+        if (preferredGenres[genre]) score += preferredGenres[genre] * 2.0;
       });
     }
     if (release.style) {
       release.style.split(",").forEach(s => {
         const style = s.trim();
-        if (preferredStyles[style]) score += preferredStyles[style] * 0.5;
+        // Increased weighting: multiplier changed from 0.5 to 1.0
+        if (preferredStyles[style]) score += preferredStyles[style] * 2.0;
       });
     }
     const currentSearch = document.getElementById("searchInput").value.trim().toLowerCase();
