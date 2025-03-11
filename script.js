@@ -1130,3 +1130,26 @@ function trackReleaseLinkClick(release) {
     url: release.link,
   });
 }
+
+/* -----------------------
+   Right–aligned toggle group 
+------------------------- */
+// (Additional CSS styling is defined in style.css)
+
+/* -----------------------
+   Cookie Popup Functionality
+------------------------- */
+document.addEventListener("DOMContentLoaded", function() {
+  const cookiePopup = document.getElementById("cookie-popup");
+  const cookieAcceptBtn = document.getElementById("cookie-accept-btn");
+  // Check if cookie consent already given
+  if (!localStorage.getItem("cookieConsent")) {
+    cookiePopup.style.display = "flex";
+  } else {
+    cookiePopup.style.display = "none";
+  }
+  cookieAcceptBtn.addEventListener("click", function() {
+    localStorage.setItem("cookieConsent", "true");
+    cookiePopup.style.display = "none";
+  });
+});

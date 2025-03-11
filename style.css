@@ -617,3 +617,37 @@ a:active,
     gap: 8px;
   }
 }
+
+/* -----------------------
+   Cookie Popup Styles
+------------------------- */
+.cookie-popup {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background-color: rgba(0, 0, 0, 0.9);
+  color: #fff;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 10000;
+}
+.cookie-popup p {
+  margin: 0;
+  font-size: 14px;
+}
+.cookie-popup a {
+  color: #E7FF6E;
+  text-decoration: underline;
+}
+.cookie-accept-btn {
+  background-color: #E7FF6E;
+  color: #000;
+  border: none;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  border-radius: 4px;
+}
