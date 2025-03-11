@@ -36,6 +36,34 @@ If Discogs or its representatives request removal of this tool, please contact:
 
 ---
 
+## Database Schema
+The application uses the following database schema to store records data:
+
+```sql
+CREATE TABLE releases(
+  id INT,
+  title TEXT,
+  year TEXT,
+  genre TEXT,
+  style TEXT,
+  label TEXT,
+  country TEXT,
+  average_rating REAL,
+  rating_count INT,
+  have INT,
+  want INT,
+  rating_coeff REAL,
+  link TEXT,
+  youtube_links TEXT,
+  demand_coeff REAL,
+  gem_value REAL,
+  lowest_price REAL,
+  format TEXT
+);
+```
+
+---
+
 ## Setup & Usage
 ### 🚀 Getting Started
 1. Clone the repository:
@@ -50,11 +78,11 @@ If Discogs or its representatives request removal of this tool, please contact:
 .
 ├── index.html        # Main page
 ├── discogs.html      # About page
-├── script.js        # Core functionality
-├── style.css        # Styling
-├── img/             # Icons & assets
+├── script.js         # Core functionality
+├── style.css         # Styling
+├── img/              # Icons & assets
 │   ├── favicons, logo, screen.jpg, etc.
-└── README.md        # This file
+└── README.md         # This file
 ```
 
 ### 📡 Technologies Used
@@ -80,6 +108,6 @@ This project is released under the **MIT License**. You are free to use, modify,
 ---
 
 ## Contact
-Made by **Jannik Aßfalg**
+Made by **Jannik Aßfalg**  
 📩 **[jannik.assfalg@gmail.com](mailto:jannik.assfalg@gmail.com)**
 
