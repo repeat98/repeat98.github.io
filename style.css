@@ -4,6 +4,15 @@
   gap: 16px;
 }
 
+/* Ensure tab toggle expands and dark-mode toggle stays fixed */
+.right-toggle-group .tab-toggle {
+  flex: 1;
+}
+
+.right-toggle-group .dark-mode-toggle {
+  flex-shrink: 0;
+}
+
 /* Tab toggle container */
 .tab-toggle {
   display: flex;
