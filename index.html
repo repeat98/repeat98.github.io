@@ -21,6 +21,8 @@
     </script>
     <!-- End GA4 -->
 
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
     <meta property="og:title" content="Gruuvs" />
     <meta
       property="og:description"
@@ -74,7 +76,7 @@
               GRUUVS
               <span
                 class="powered-by d-none d-md-inline fst-italic fw-light ms-1"
-                style="opacity: 0.8; font-size: 12px;"
+                style="opacity: 0.8; font-size: 12px"
               >
                 powered by Discogs
               </span>
@@ -249,11 +251,20 @@
           <button id="import-btn" class="btn btn-secondary">
             <i class="bi bi-upload"></i> Import User Data
           </button>
-          <!-- Hidden file input for importing -->
+          <button id="import-discogs-btn" class="btn btn-secondary">
+            <i class="bi bi-upload"></i> Import Discogs Collection
+          </button>
+          <!-- Hidden file inputs for importing -->
           <input
             type="file"
             id="import-file"
             accept=".json"
+            style="display: none"
+          />
+          <input
+            type="file"
+            id="import-discogs-file"
+            accept=".csv"
             style="display: none"
           />
         </div>

@@ -200,7 +200,6 @@ async function fetchShuffleReleases() {
   }
 }
 
-// ------------------ Personalized Recommendations ------------------
 async function loadPersonalizedShuffleData() {
   const { data: candidateData } = await fetchShuffleReleases();
 
@@ -774,7 +773,6 @@ function updateSortIndicators() {
 
 // ------------------ Mobile Sorting Options ------------------
 document.addEventListener("DOMContentLoaded", () => {
-  // Initialize mobile sort dropdown if present
   const mobileSortSelect = document.getElementById("mobile-sort-select");
   const mobileSortToggle = document.getElementById("mobile-sort-toggle");
   if (mobileSortSelect) {
@@ -798,138 +796,18 @@ document.addEventListener("DOMContentLoaded", () => {
       loadData(currentPage);
     });
   }
-});
 
-// ------------------ YouTube Integration ------------------
-function initializeYouTubePlayers() {
-  filteredData.forEach((release) => {
-    if (release.youtube_links) {
-      const yID = extractYouTubeID(release.youtube_links);
-      if (yID) {
-        const iframe = document.getElementById(`youtube-player-${release.id}`);
-        if (iframe && YT && YT.Player) {
-          new YT.Player(iframe, {
-            events: {
-              onStateChange: (event) => {
-                if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
-                  markAsInteracted(release.id);
-                  const tr = iframe.closest("tr");
-                  if (tr) tr.classList.add("greyed-out");
-                }
-              },
-            },
-          });
-        }
-      }
+  // ------------------ New: Import Discogs Collection functionality ------------------
+  document.getElementById("import-discogs-btn").addEventListener("click", () => {
+    document.getElementById("import-discogs-file").click();
+  });
+  document.getElementById("import-discogs-file").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      importDiscogsCollection(file);
     }
   });
-}
-
-// ------------------ Event Tracking ------------------
-function trackFilterApplied() {
-  const genre = document.getElementById("genre").value;
-  const style = document.getElementById("style").value;
-  const yearRange = document.getElementById("year_range").value.trim();
-  const ratingRange = document.getElementById("rating_range").value.trim();
-  const ratingCountRange = document.getElementById("rating_count_range").value.trim();
-  const priceRange = document.getElementById("price_range").value.trim();
-  gtag("event", "filter_applied", {
-    genre: genre || "All",
-    style: style || "All",
-    year_range: yearRange || "All",
-    rating_range: ratingRange || "All",
-    rating_count_range: ratingCountRange || "All",
-    price_range: priceRange || "All",
-  });
-}
-
-function trackCopyButtonClick(release) {
-  gtag("event", "copy_title", {
-    title: release.title,
-    label: release.label || "Unknown",
-    release_id: release.id,
-  });
-}
-
-function trackReleaseLinkClick(release) {
-  gtag("event", "release_link_click", {
-    title: release.title,
-    label: release.label || "Unknown",
-    release_id: release.id,
-    url: release.link,
-  });
-}
-
-// ------------------ Tab Toggle and Filter Button Update ------------------
-function updateFilterButtons() {
-  if (activeTab === "bookmark") {
-    document.getElementById("filter-wrapper").style.display = "none";
-    document.getElementById("bookmark-actions").style.display = "block";
-    // Keep pagination visible in Bookmark tab
-    document.getElementById("pagination").style.display = "block";
-  } else {
-    document.getElementById("filter-wrapper").style.display = "block";
-    document.getElementById("bookmark-actions").style.display = "none";
-  }
-  if (activeTab === "search") {
-    document.querySelector(".filter-btn").style.display = "inline-block";
-    document.querySelector(".shuffle-btn").style.display = "none";
-    document.getElementById("personalized-toggle-container").style.display = "none";
-    // Keep pagination visible in Search tab
-    document.getElementById("pagination").style.display = "block";
-  } else if (activeTab === "shuffle") {
-    document.querySelector(".filter-btn").style.display = "none";
-    document.querySelector(".shuffle-btn").style.display = "inline-block";
-    document.getElementById("personalized-toggle-container").style.display = "flex";
-    // Remove pagination in the Shuffle tab
-    document.getElementById("pagination").style.display = "none";
-  }
-}
-
-// ------------------ Export / Import User Data ------------------
-function exportUserData() {
-  const userData = {
-    bookmarkedReleases: JSON.parse(localStorage.getItem("bookmarkedReleases") || "[]"),
-    interactedReleases: JSON.parse(localStorage.getItem("interactedReleases") || "[]"),
-    tableColumnWidths: JSON.parse(localStorage.getItem("tableColumnWidths") || "{}"),
-    darkModeEnabled: localStorage.getItem("darkModeEnabled") || "true",
-    sortConfig: JSON.parse(localStorage.getItem("sortConfig") || '{"key":"title","order":"asc"}')
-  };
-  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(userData, null, 2));
-  const dlAnchorElem = document.createElement("a");
-  dlAnchorElem.setAttribute("href", dataStr);
-  dlAnchorElem.setAttribute("download", "userData.json");
-  dlAnchorElem.click();
-}
-
-function importUserData(file) {
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    try {
-      const imported = JSON.parse(e.target.result);
-      if (imported && typeof imported === 'object') {
-        if(imported.bookmarkedReleases) localStorage.setItem("bookmarkedReleases", JSON.stringify(imported.bookmarkedReleases));
-        if(imported.interactedReleases) localStorage.setItem("interactedReleases", JSON.stringify(imported.interactedReleases));
-        if(imported.tableColumnWidths) localStorage.setItem("tableColumnWidths", JSON.stringify(imported.tableColumnWidths));
-        if(imported.darkModeEnabled) localStorage.setItem("darkModeEnabled", imported.darkModeEnabled);
-        if(imported.sortConfig) localStorage.setItem("sortConfig", JSON.stringify(imported.sortConfig));
-        if (activeTab === "bookmark") {
-          loadBookmarks(currentPage);
-        }
-        applySavedColumnWidths();
-        updateSortIndicators();
-      } else {
-        alert("Invalid file format.");
-      }
-    } catch (err) {
-      alert("Error reading file.");
-    }
-  };
-  reader.readAsText(file);
-}
-
-// ------------------ DOMContentLoaded ------------------
-document.addEventListener("DOMContentLoaded", async () => {
+  
   // Load sort configuration from localStorage or set default to title asc
   sortConfig = JSON.parse(localStorage.getItem("sortConfig") || '{"key":"title","order":"asc"}');
 
@@ -945,14 +823,15 @@ document.addEventListener("DOMContentLoaded", async () => {
       loadShuffleData();
     }
   });
-  await initializeFilters();
-  if (activeTab === "search") {
-    loadData(1);
-  } else if (activeTab === "shuffle") {
-    loadShuffleData();
-  } else if (activeTab === "bookmark") {
-    loadBookmarks(1);
-  }
+  initializeFilters().then(() => {
+    if (activeTab === "search") {
+      loadData(1);
+    } else if (activeTab === "shuffle") {
+      loadShuffleData();
+    } else if (activeTab === "bookmark") {
+      loadBookmarks(1);
+    }
+  });
   applySavedColumnWidths();
   makeTableResizable();
   updateSortIndicators();
@@ -1058,3 +937,183 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 });
+
+/* -----------------------
+   New: CSV Parser & Discogs Collection Import
+------------------------- */
+async function importDiscogsCollection(file) {
+  try {
+    // Read the CSV file as text
+    const csvText = await file.text();
+    // Parse CSV using PapaParse (ensure this library is loaded in your HTML)
+    const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+    const rows = parsed.data;
+    // Extract all release_id values from the CSV
+    const releaseIds = rows
+      .map(row => row.release_id)
+      .filter(id => id !== undefined && id !== "");
+    // Deduplicate the IDs
+    const uniqueIds = [...new Set(releaseIds.map(String))];
+    if (uniqueIds.length === 0) {
+      alert("No release_id values found in CSV.");
+      return;
+    }
+    // Query Supabase for all releases with id matching any of the CSV release_ids
+    const { data, error } = await supabaseClient
+      .from("releases")
+      .select("*")
+      .in("id", uniqueIds);
+    if (error) {
+      alert("Error querying releases from database.");
+      return;
+    }
+    const bookmarked = getBookmarkedReleases();
+    let importedCount = 0;
+    // For each release_id from the CSV, add the matching release if found and not already bookmarked
+    uniqueIds.forEach(rid => {
+      const match = data.find(item => String(item.id) === rid);
+      if (match && !bookmarked.some(b => String(b.id) === rid)) {
+        bookmarked.push(match);
+        importedCount++;
+      }
+    });
+    const failedCount = uniqueIds.length - data.length;
+    saveBookmarkedReleases(bookmarked);
+    if (activeTab === "bookmark") loadBookmarks(currentPage);
+    alert(`Discogs Collection Import Completed. Imported: ${importedCount}, Failed: ${failedCount}`);
+  } catch (err) {
+    alert("Error processing CSV file.");
+  }
+}
+
+/* -----------------------
+   Tab Toggle and Filter Button Update
+------------------------- */
+function updateFilterButtons() {
+  if (activeTab === "bookmark") {
+    document.getElementById("filter-wrapper").style.display = "none";
+    document.getElementById("bookmark-actions").style.display = "block";
+    // Keep pagination visible in Bookmark tab
+    document.getElementById("pagination").style.display = "block";
+  } else {
+    document.getElementById("filter-wrapper").style.display = "block";
+    document.getElementById("bookmark-actions").style.display = "none";
+  }
+  if (activeTab === "search") {
+    document.querySelector(".filter-btn").style.display = "inline-block";
+    document.querySelector(".shuffle-btn").style.display = "none";
+    document.getElementById("personalized-toggle-container").style.display = "none";
+    // Keep pagination visible in Search tab
+    document.getElementById("pagination").style.display = "block";
+  } else if (activeTab === "shuffle") {
+    document.querySelector(".filter-btn").style.display = "none";
+    document.querySelector(".shuffle-btn").style.display = "inline-block";
+    document.getElementById("personalized-toggle-container").style.display = "flex";
+    // Remove pagination in the Shuffle tab
+    document.getElementById("pagination").style.display = "none";
+  }
+}
+
+/* -----------------------
+   YouTube Integration
+------------------------- */
+function initializeYouTubePlayers() {
+  filteredData.forEach((release) => {
+    if (release.youtube_links) {
+      const yID = extractYouTubeID(release.youtube_links);
+      if (yID) {
+        const iframe = document.getElementById(`youtube-player-${release.id}`);
+        if (iframe && typeof YT !== "undefined" && YT && YT.Player) {
+          new YT.Player(iframe, {
+            events: {
+              onStateChange: (event) => {
+                if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
+                  markAsInteracted(release.id);
+                  const tr = iframe.closest("tr");
+                  if (tr) tr.classList.add("greyed-out");
+                }
+              },
+            },
+          });
+        }
+      }
+    }
+  });
+}
+
+// ------------------ Export / Import User Data ------------------
+function exportUserData() {
+  const userData = {
+    bookmarkedReleases: JSON.parse(localStorage.getItem("bookmarkedReleases") || "[]"),
+    interactedReleases: JSON.parse(localStorage.getItem("interactedReleases") || "[]"),
+    tableColumnWidths: JSON.parse(localStorage.getItem("tableColumnWidths") || "{}"),
+    darkModeEnabled: localStorage.getItem("darkModeEnabled") || "true",
+    sortConfig: JSON.parse(localStorage.getItem("sortConfig") || '{"key":"title","order":"asc"}')
+  };
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(userData, null, 2));
+  const dlAnchorElem = document.createElement("a");
+  dlAnchorElem.setAttribute("href", dataStr);
+  dlAnchorElem.setAttribute("download", "userData.json");
+  dlAnchorElem.click();
+}
+
+function importUserData(file) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const imported = JSON.parse(e.target.result);
+      if (imported && typeof imported === 'object') {
+        if(imported.bookmarkedReleases) localStorage.setItem("bookmarkedReleases", JSON.stringify(imported.bookmarkedReleases));
+        if(imported.interactedReleases) localStorage.setItem("interactedReleases", JSON.stringify(imported.interactedReleases));
+        if(imported.tableColumnWidths) localStorage.setItem("tableColumnWidths", JSON.stringify(imported.tableColumnWidths));
+        if(imported.darkModeEnabled) localStorage.setItem("darkModeEnabled", imported.darkModeEnabled);
+        if(imported.sortConfig) localStorage.setItem("sortConfig", JSON.stringify(imported.sortConfig));
+        if (activeTab === "bookmark") {
+          loadBookmarks(currentPage);
+        }
+        applySavedColumnWidths();
+        updateSortIndicators();
+      } else {
+        alert("Invalid file format.");
+      }
+    } catch (err) {
+      alert("Error reading file.");
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ------------------ Event Tracking ------------------
+function trackFilterApplied() {
+  const genre = document.getElementById("genre").value;
+  const style = document.getElementById("style").value;
+  const yearRange = document.getElementById("year_range").value.trim();
+  const ratingRange = document.getElementById("rating_range").value.trim();
+  const ratingCountRange = document.getElementById("rating_count_range").value.trim();
+  const priceRange = document.getElementById("price_range").value.trim();
+  gtag("event", "filter_applied", {
+    genre: genre || "All",
+    style: style || "All",
+    year_range: yearRange || "All",
+    rating_range: ratingRange || "All",
+    rating_count_range: ratingCountRange || "All",
+    price_range: priceRange || "All",
+  });
+}
+
+function trackCopyButtonClick(release) {
+  gtag("event", "copy_title", {
+    title: release.title,
+    label: release.label || "Unknown",
+    release_id: release.id,
+  });
+}
+
+function trackReleaseLinkClick(release) {
+  gtag("event", "release_link_click", {
+    title: release.title,
+    label: release.label || "Unknown",
+    release_id: release.id,
+    url: release.link,
+  });
+}
