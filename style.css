@@ -122,18 +122,19 @@
    LIGHT THEME (DEFAULT)
 ------------------------- */
 :root {
-  --bg-color: #f1f1f1;
-  --card-bg: #ffffff;
-  --text-color: #414651;
+  --bg-color: #E0E0E0;
+  --card-bg: #C9C9C9;
+  --text-color: #1F1F1F;
   --border-color: #d5d7da;
-  --primary-color: #2D2D2D;
-  --table-header-bg: #414651;
-  --table-header-text: #ffffff;
-  --badge-genre-bg: #4a90e2;
-  --badge-genre-text: #ffffff;
-  --badge-style-bg: #f0f0f0;
-  --badge-style-text: #4a90e2;
-  --input-bg: #ffffff;
+  --primary-color: #C9C9C9;
+  --table-header-bg: #C9C9C9;
+  --table-header-text: #1F1F1F;
+  /* In light mode, genre is darker and style is lighter – both a little lighter overall */
+  --badge-genre-bg: #808080;
+  --badge-genre-text: var(--text-color);
+  --badge-style-bg: #A0A0A0;
+  --badge-style-text: var(--text-color);
+  --input-bg: #C9C9C9;
   --input-border: #d5d7da;
   --input-focus: #E7FF6E;
   --btn-primary-bg: #1a202c;
@@ -152,10 +153,11 @@ body.dark-mode {
   --primary-color: #2D2D2D;
   --table-header-bg: #3A3A3A;
   --table-header-text: #ffffff;
-  --badge-genre-bg: #5a8dee;
-  --badge-genre-text: #ffffff;
-  --badge-style-bg: #444;
-  --badge-style-text: #f0f0f0;
+  /* In dark mode, reverse: genre is lighter and style is darker */
+  --badge-genre-bg: #A0A0A0;
+  --badge-genre-text: var(--text-color);
+  --badge-style-bg: #808080;
+  --badge-style-text: var(--text-color);
   --input-bg: #2D2D2D;
   --input-border: #555;
   --input-focus: #E7FF6E;
@@ -207,10 +209,12 @@ body::before {
 /* Navbar */
 .navbar {
   background-color: var(--primary-color) !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  /* Removed drop shadow */
 }
 .navbar-brand {
-  font-weight: 500;
+  font-weight: bold;
+  font-size: 16px;
+  color: var(--text-color); /* Title uses text color */
 }
 
 /* Dark mode toggle */
@@ -395,12 +399,12 @@ body.dark-mode .table-container tbody tr td {
   margin: 4px 4px 0 0;
 }
 .badge-genre {
-  background: #555555 !important;
-  color: #fff !important;
+  background: var(--badge-genre-bg) !important;
+  color: var(--badge-genre-text) !important;
 }
 .badge-style {
-  background: #333333 !important;
-  color: #fff !important;
+  background: var(--badge-style-bg) !important;
+  color: var(--badge-style-text) !important;
 }
 .no-results {
   text-align: center;
@@ -438,7 +442,7 @@ a:hover,
 a:focus,
 a:active,
 .text-primary {
-  color: #ffffff !important;
+  color: var(--text-color) !important;
 }
 
 /* Set the shuffle and filter buttons to #E7FF6E */
@@ -447,13 +451,6 @@ a:active,
   background-color: #E7FF6E !important;
   border-color: #E7FF6E !important;
   color: #000 !important;
-}
-
-/* Style the navbar title and its icon to #E7FF6E */
-.navbar-brand {
-  color: #E7FF6E;
-  font-weight: bold;
-  font-size: 16px;
 }
 
 /* -----------------------
@@ -518,6 +515,7 @@ a:active,
     margin-bottom: 8px;
     font-size: 16px;
     font-weight: bold;
+    color: var(--text-color); /* Title uses text color */
   }
   .mobile-rating {
     font-size: 14px;
