@@ -48,16 +48,34 @@ function toggleBookmark(release) {
     action = "added";
   }
   saveBookmarkedReleases(bookmarks);
-  // Track bookmark toggle event over GA
+  
+  // Track bookmark toggle event over GA.
   gtag("event", "bookmark_toggle", {
     action: action,
     release_id: release.id,
     title: release.title,
   });
+  
+  // Update only the bookmark icon without re-rendering the whole table.
+  const row = document.querySelector(`tr[data-id="${release.id}"]`);
+  if (row) {
+    const bookmarkIcon = row.querySelector(".bookmark-star");
+    if (bookmarkIcon) {
+      if (isBookmarked(release.id)) {
+        bookmarkIcon.classList.remove("bi-bookmark");
+        bookmarkIcon.classList.add("bi-bookmark-fill", "bookmarked");
+      } else {
+        bookmarkIcon.classList.remove("bi-bookmark-fill", "bookmarked");
+        bookmarkIcon.classList.add("bi-bookmark");
+      }
+    }
+  }
+  
+  // If in bookmark tab, you may want to update the list:
   if (activeTab === "bookmark") {
     loadBookmarks(currentPage);
   }
-  renderTable();
+  // Remove the call to renderTable() here to prevent full re-render of the videos.
 }
 
 // ------------------ Helper Functions ------------------
