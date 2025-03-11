@@ -43,6 +43,8 @@ function toggleBookmark(release) {
     bookmarks = bookmarks.filter(r => r.id !== release.id);
     action = "removed";
   } else {
+    // Add a timestamp so bookmarks can be sorted by recency.
+    release.bookmarkedAt = new Date().toISOString();
     bookmarks.push(release);
     action = "added";
   }
@@ -282,7 +284,32 @@ async function loadShuffleData() {
 
 // ------------------ Load Bookmarked Releases ------------------
 function loadBookmarks(page = 1) {
-  const bookmarks = getBookmarkedReleases();
+  let bookmarks = getBookmarkedReleases();
+  // If no explicit sort is set, sort by bookmarkedAt (most recent first)
+  if (!sortConfig || sortConfig.key === "title") {
+    bookmarks.sort((a, b) => new Date(b.bookmarkedAt) - new Date(a.bookmarkedAt));
+  } else {
+    // Otherwise sort based on the chosen sortConfig
+    bookmarks.sort((a, b) => {
+      let aVal = a[sortConfig.key];
+      let bVal = b[sortConfig.key];
+      // For string comparisons on title or label
+      if (sortConfig.key === "title" || sortConfig.key === "label") {
+        aVal = aVal ? aVal.toLowerCase() : "";
+        bVal = bVal ? bVal.toLowerCase() : "";
+      } else if (["year", "have", "want", "lowest_price"].includes(sortConfig.key)) {
+        aVal = parseFloat(aVal) || 0;
+        bVal = parseFloat(bVal) || 0;
+      } else if (sortConfig.key === "rating_coeff") {
+        // For user rating, we can use average_rating
+        aVal = parseFloat(a.average_rating) || 0;
+        bVal = parseFloat(b.average_rating) || 0;
+      }
+      if (aVal < bVal) return sortConfig.order === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortConfig.order === "asc" ? 1 : -1;
+      return 0;
+    });
+  }
   totalRecords = bookmarks.length;
   totalPages = Math.ceil(totalRecords / pageSize) || 1;
   currentPage = page;
@@ -749,7 +776,12 @@ document.querySelectorAll("th[data-sort]").forEach((header) => {
       }
     }
     localStorage.setItem("sortConfig", JSON.stringify(sortConfig));
-    loadData(currentPage);
+    // If in bookmark tab, sort the local bookmark data; otherwise, query database.
+    if (activeTab === "bookmark") {
+      loadBookmarks(currentPage);
+    } else {
+      loadData(currentPage);
+    }
     updateSortIndicators();
   });
 });
@@ -986,6 +1018,8 @@ async function importDiscogsCollection(file) {
     uniqueIds.forEach(rid => {
       const match = data.find(item => String(item.id) === rid);
       if (match && !bookmarked.some(b => String(b.id) === rid)) {
+        // Add timestamp on import
+        match.bookmarkedAt = new Date().toISOString();
         bookmarked.push(match);
         importedCount++;
       }
