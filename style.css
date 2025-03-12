@@ -688,3 +688,49 @@ a:active,
   font-size: 14px;
   border-radius: 4px;
 }
+
+/* -----------------------
+   New Styles for Progress Modal
+------------------------- */
+#progressModal .modal-content {
+  background: var(--card-bg);
+  color: var(--text-color);
+  border: none;
+}
+#progressModal .modal-header {
+  border-bottom: 1px solid var(--border-color);
+}
+#progressModal .modal-body {
+  font-size: 14px;
+}
+#progressModal .progress {
+  height: 20px;
+  margin-top: 10px;
+}
+#progressModal .progress-bar {
+  background-color: var(--input-focus);
+}
+
+/* -----------------------
+   New Styles for Bookmark Feature
+------------------------- */
+.bookmark-star {
+  cursor: pointer;
+  font-size: 1.2rem;
+  color: #E7FF6E;
+  transition: color 0.3s;
+}
+.bookmark-star.bookmarked {
+  color: #E7FF6E;
+}
+
+/* -----------------------
+   Match Export & Import Buttons
+   to the Filter/Shuffle style
+------------------------- */
+#export-btn,
+#import-btn {
+  background-color: #E7FF6E !important;
+  border-color: #E7FF6E !important;
+  color: #000 !important;
+}

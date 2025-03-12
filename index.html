@@ -46,7 +46,11 @@
     </script>
     <!-- End GA4 -->
 
+    <!-- PapaParse -->
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    
+    <!-- jsmediatags for metadata extraction (ensure this is loaded for the Import Collection feature) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
 
     <meta property="og:title" content="Gruuvs" />
     <meta
@@ -185,9 +189,7 @@
               </div>
               <!-- Rating range -->
               <div class="filter-group">
-                <label for="rating_range" class="filter-label"
-                  >Rating range</label
-                >
+                <label for="rating_range" class="filter-label">Rating range</label>
                 <input
                   type="text"
                   id="rating_range"
@@ -198,9 +200,7 @@
               </div>
               <!-- Rating Count range -->
               <div class="filter-group">
-                <label for="rating_count_range" class="filter-label"
-                  >Rating Count range</label
-                >
+                <label for="rating_count_range" class="filter-label">Rating Count range</label>
                 <input
                   type="text"
                   id="rating_count_range"
@@ -211,9 +211,7 @@
               </div>
               <!-- Price range -->
               <div class="filter-group">
-                <label for="price_range" class="filter-label"
-                  >Price range</label
-                >
+                <label for="price_range" class="filter-label">Price range</label>
                 <input
                   type="text"
                   id="price_range"
@@ -265,12 +263,8 @@
         </div>
       </div>
 
-      <!-- Bookmark Actions: Export, Import & Merge (now placed below the filter box) -->
-      <div
-        class="container MainContainer"
-        id="bookmark-actions"
-        style="display: none"
-      >
+      <!-- Bookmark Actions: Export, Import & Merge (placed below the filter box) -->
+      <div class="container MainContainer" id="bookmark-actions" style="display: none">
         <div class="d-flex justify-content-end gap-2 mb-2">
           <button id="export-btn" class="btn btn-primary">
             <i class="bi bi-download"></i> Export User Data
@@ -284,35 +278,23 @@
           <button id="import-discogs-btn" class="btn btn-secondary">
             <i class="bi bi-upload"></i> Import Discogs Collection
           </button>
-          <!-- Hidden file inputs for importing and merging -->
-          <input
-            type="file"
-            id="import-file"
-            accept=".json"
-            style="display: none"
-          />
-          <input
-            type="file"
-            id="merge-file"
-            accept=".json"
-            style="display: none"
-          />
-          <input
-            type="file"
-            id="import-discogs-file"
-            accept=".csv"
-            style="display: none"
-          />
+          <!-- New Import Collection Button -->
+          <button id="import-collection-btn" class="btn btn-secondary">
+            <i class="bi bi-folder-plus"></i> Import Collection
+          </button>
+          <!-- Hidden file inputs for importing, merging, and collection folder selection -->
+          <input type="file" id="import-file" accept=".json" style="display: none" />
+          <input type="file" id="merge-file" accept=".json" style="display: none" />
+          <input type="file" id="import-discogs-file" accept=".csv" style="display: none" />
+          <!-- New folder input for Import Collection (webkitdirectory enables folder selection) -->
+          <input type="file" id="import-collection-folder" style="display: none" webkitdirectory directory multiple />
         </div>
       </div>
 
       <!-- Main Content container for table and pagination -->
       <div class="container MainContainer" style="position: relative">
         <!-- Results Count -->
-        <div
-          class="d-flex justify-content-between align-items-center mb-2"
-          style="margin-top: 1rem"
-        >
+        <div class="d-flex justify-content-between align-items-center mb-2" style="margin-top: 1rem">
           <div id="results-count" class="fw-semibold">
             <!-- dynamically updated -->
           </div>
@@ -340,123 +322,49 @@
             <thead>
               <tr>
                 <!-- Table header order: Title, Label, Year, Genre/Style, User Rating, Rarity, Gem, Have, Want, Price, Bookmark, Preview -->
-                <th
-                  scope="col"
-                  data-column="Title"
-                  data-sort="title"
-                  style="min-width: 160px"
-                >
+                <th scope="col" data-column="Title" data-sort="title" style="min-width: 160px">
                   Title
                   <div class="resizer"></div>
                 </th>
-                <th
-                  scope="col"
-                  data-column="Label"
-                  data-sort="label"
-                  style="min-width: 120px"
-                >
+                <th scope="col" data-column="Label" data-sort="label" style="min-width: 120px">
                   Label
                   <div class="resizer"></div>
                 </th>
-                <th
-                  scope="col"
-                  data-column="Year"
-                  data-sort="year"
-                  style="width: 70px"
-                  class="text-center"
-                >
+                <th scope="col" data-column="Year" data-sort="year" style="width: 70px" class="text-center">
                   Year
                   <div class="resizer"></div>
                 </th>
-                <th
-                  scope="col"
-                  data-column="Genre / Style"
-                  data-sort="NO_SORT"
-                  style="min-width: 150px"
-                >
+                <th scope="col" data-column="Genre / Style" data-sort="NO_SORT" style="min-width: 150px">
                   Genre / Style
                   <div class="resizer"></div>
                 </th>
-                <th
-                  scope="col"
-                  class="text-center"
-                  data-sort="USER_RATING"
-                  data-column="User Rating"
-                  title="Click to sort rating_coeff ascending/descending."
-                  data-bs-toggle="tooltip"
-                  data-bs-placement="top"
-                  data-bs-delay='{"show":1000, "hide":100}'
-                  style="width: 140px"
-                >
+                <th scope="col" class="text-center" data-sort="USER_RATING" data-column="User Rating" title="Click to sort rating_coeff ascending/descending." data-bs-toggle="tooltip" data-bs-placement="top" data-bs-delay='{"show":1000, "hide":100}' style="width: 140px">
                   User Rating
                   <div class="resizer"></div>
                 </th>
-                <th
-                  scope="col"
-                  class="text-center"
-                  data-sort="demand_coeff"
-                  data-column="Rarity"
-                  title="Click to sort by Rarity (want/have ratio)."
-                  data-bs-toggle="tooltip"
-                  data-bs-placement="top"
-                  data-bs-delay='{"show":1000, "hide":100}'
-                  style="width: 90px"
-                >
+                <th scope="col" class="text-center" data-sort="demand_coeff" data-column="Rarity" title="Click to sort by Rarity (want/have ratio)." data-bs-toggle="tooltip" data-bs-placement="top" data-bs-delay='{"show":1000, "hide":100}' style="width: 90px">
                   Rarity
                   <div class="resizer"></div>
                 </th>
-                <th
-                  scope="col"
-                  class="text-center"
-                  data-sort="gem_value"
-                  data-column="Gem ⟡"
-                  title="Click to sort by Gem (combines rating & rarity)."
-                  data-bs-toggle="tooltip"
-                  data-bs-placement="top"
-                  data-bs-delay='{"show":1000, "hide":100}'
-                  style="width: 90px"
-                >
+                <th scope="col" class="text-center" data-sort="gem_value" data-column="Gem ⟡" title="Click to sort by Gem (combines rating & rarity)." data-bs-toggle="tooltip" data-bs-placement="top" data-bs-delay='{"show":1000, "hide":100}' style="width: 90px">
                   Gem⟡
                   <div class="resizer"></div>
                 </th>
-                <th
-                  scope="col"
-                  class="text-center"
-                  data-sort="have"
-                  data-column="Have"
-                  style="width: 70px"
-                >
+                <th scope="col" class="text-center" data-sort="have" data-column="Have" style="width: 70px">
                   Have
                   <div class="resizer"></div>
                 </th>
-                <th
-                  scope="col"
-                  class="text-center"
-                  data-sort="want"
-                  data-column="Want"
-                  style="width: 70px"
-                >
+                <th scope="col" class="text-center" data-sort="want" data-column="Want" style="width: 70px">
                   Want
                   <div class="resizer"></div>
                 </th>
-                <th
-                  scope="col"
-                  class="text-center"
-                  data-sort="lowest_price"
-                  data-column="Price"
-                  style="width: 80px"
-                >
+                <th scope="col" class="text-center" data-sort="lowest_price" data-column="Price" style="width: 80px">
                   Price
                   <div class="resizer"></div>
                 </th>
                 <!-- Bookmark header placed immediately to the left of the preview column -->
                 <th style="width: 40px"></th>
-                <th
-                  scope="col"
-                  class="text-center"
-                  data-column="Preview"
-                  style="width: 220px"
-                >
+                <th scope="col" class="text-center" data-column="Preview" style="width: 220px">
                   Preview
                   <div class="resizer"></div>
                 </th>
@@ -472,9 +380,7 @@
         <div class="pagination-container">
           <ul class="pagination" id="pagination">
             <li class="page-item disabled">
-              <a class="page-link" href="#" tabindex="-1" aria-disabled="true"
-                >Prev</a
-              >
+              <a class="page-link" href="#" tabindex="-1" aria-disabled="true">Prev</a>
             </li>
             <li class="page-item active" aria-current="page">
               <a class="page-link" href="#">1</a>
@@ -530,9 +436,7 @@
     <script src="https://www.youtube.com/iframe_api"></script>
 
     <!-- Bootstrap JS (with Popper) -->
-    <script
-      src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
-    ></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <!-- Main JS -->
     <script src="script.js"></script>
