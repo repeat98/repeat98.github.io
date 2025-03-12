@@ -1159,26 +1159,57 @@ function hideProgressModal() {
 
 
 
-// UPDATED: Import Collection Function with Progress Modal
+/* -----------------------
+   Helper: Parse File Name for Artist and Album
+------------------------- */
+function parseFileName(fileName) {
+  // Remove file extension (e.g., .mp3, .flac)
+  const nameWithoutExtension = fileName.replace(/\.[^/.]+$/, "");
+  // Expect pattern "Artist - Album" (or more parts)
+  const parts = nameWithoutExtension.split(" - ");
+  if (parts.length >= 2) {
+    return {
+      artist: parts[0].toLowerCase().trim(),
+      album: parts.slice(1).join(" - ").toLowerCase().trim()
+    };
+  }
+  return {};
+}
+
+/* -----------------------
+   New Feature: Import Collection from Folder (Improved Matching with Fallback for Missing Metadata)
+------------------------- */
+// This function uses jsmediatags to read metadata from audio files.
+// It groups files by a composite key of artist and album. If metadata is missing,
+// it will attempt to extract the information from the file name (expecting "Artist - Album").
+// Then it queries the database for a release whose title is formatted as "Artist - release title".
+// The matching uses both the artist and album fields for increased accuracy.
+// A detailed log of the scanning and matching process is generated and downloaded.
 async function importCollection(files) {
   if (typeof jsmediatags === "undefined") {
     alert("jsmediatags library is required for metadata extraction.");
     return;
   }
-  // Show the modal before processing starts
+  
+  // Initialize log array to capture the scanning and matching process
+  const logMessages = [];
+  logMessages.push(`Import started at: ${new Date().toISOString()}`);
+  
+  // Show the progress modal
   showProgressModal("Processing files...", 0);
   
-  // Group audio files by album (normalize album title)
-  const albumMap = new Map();
+  // Group audio files by composite key (artist|album)
+  const albumArtistMap = new Map();
   let processedFiles = 0;
   let totalAudioFiles = 0;
   
-  // Count audio files only
+  // Count only audio files
   for (const file of files) {
     if (file.type.startsWith("audio/")) {
       totalAudioFiles++;
     }
   }
+  logMessages.push(`Total audio files detected: ${totalAudioFiles}`);
   
   // Process each file
   for (const file of files) {
@@ -1186,19 +1217,45 @@ async function importCollection(files) {
     await new Promise((resolve) => {
       jsmediatags.read(file, {
         onSuccess: function(tag) {
-          const album = tag.tags.album ? tag.tags.album.toLowerCase().trim() : null;
-          if (album) {
-            if (!albumMap.has(album)) {
-              albumMap.set(album, []);
+          // Read metadata from tags
+          let albumRaw = tag.tags.album;
+          let artistRaw = tag.tags.artist;
+          let album = albumRaw ? albumRaw.toLowerCase().trim() : null;
+          let artist = artistRaw ? artistRaw.toLowerCase().trim() : null;
+          
+          // If either field is missing, try to parse from the file name
+          if (!artist || !album) {
+            const parsed = parseFileName(file.name);
+            if (!artist && parsed.artist) {
+              artist = parsed.artist;
+              logMessages.push(`Artist parsed from filename for "${file.name}": ${artist}`);
             }
-            albumMap.get(album).push(file);
+            if (!album && parsed.album) {
+              album = parsed.album;
+              logMessages.push(`Album parsed from filename for "${file.name}": ${album}`);
+            }
           }
+          
+          logMessages.push(`File "${file.name}" processed. Artist: ${artist || "N/A"}, Album: ${album || "N/A"}`);
+          
+          if (artist && album) {
+            // Create a composite key for grouping
+            const key = `${artist}|${album}`;
+            if (!albumArtistMap.has(key)) {
+              albumArtistMap.set(key, { artist, album, files: [] });
+              logMessages.push(`New group created for key: "${key}"`);
+            }
+            albumArtistMap.get(key).files.push(file);
+          } else {
+            logMessages.push(`File "${file.name}" skipped due to insufficient metadata (even after filename parsing).`);
+          }
+          
           processedFiles++;
           updateProgressModal(`Processing files... (${processedFiles}/${totalAudioFiles})`, Math.round((processedFiles / totalAudioFiles) * 100));
           resolve();
         },
         onError: function(error) {
-          console.error("Error reading file metadata:", error);
+          logMessages.push(`Error reading file "${file.name}": ${error.type}`);
           processedFiles++;
           updateProgressModal(`Processing files... (${processedFiles}/${totalAudioFiles})`, Math.round((processedFiles / totalAudioFiles) * 100));
           resolve();
@@ -1207,34 +1264,84 @@ async function importCollection(files) {
     });
   }
   
-  // Now process each album group and try to match with a release in the database
+  // Now process each album-artist group and try to match with a release in the database
   let importedCount = 0;
-  const albumEntries = Array.from(albumMap.entries());
-  for (let i = 0; i < albumEntries.length; i++) {
-    const [album, files] = albumEntries[i];
-    updateProgressModal(`Matching album "${album}" (${i + 1}/${albumEntries.length})`, Math.round(((i + 1) / albumEntries.length) * 100));
+  const groupEntries = Array.from(albumArtistMap.entries());
+  logMessages.push(`Total album-artist groups to process: ${groupEntries.length}`);
+  
+  for (let i = 0; i < groupEntries.length; i++) {
+    const [key, group] = groupEntries[i];
+    const { artist, album } = group;
+    logMessages.push(`Matching group "${key}" (${i + 1}/${groupEntries.length}), containing ${group.files.length} file(s).`);
+    updateProgressModal(`Matching group "${key}" (${i + 1}/${groupEntries.length})`, Math.round(((i + 1) / groupEntries.length) * 100));
+    
+    // Query for a release that matches the expected format: "Artist - release title"
+    // and that contains the album name within the release title.
     const { data, error } = await supabaseClient
       .from("releases")
       .select("*")
-      .ilike("title", `%${album}%`)
+      .ilike("title", `%${artist}% - %${album}%`)
       .limit(1);
+      
     if (error) {
-      console.error("Error querying album:", error);
+      logMessages.push(`Error querying group "${key}": ${error.message}`);
       continue;
     }
+    
     if (data && data.length > 0) {
       const release = data[0];
+      // Extract expected artist and album parts from the release title
+      const titleParts = release.title.split(" - ");
+      const releaseArtist = titleParts.length > 0 ? titleParts[0].toLowerCase().trim() : "";
+      const releaseAlbum = titleParts.length > 1 ? titleParts.slice(1).join(" - ").toLowerCase().trim() : "";
+      
+      // Check if both artist and album match (exact match required)
+      if (releaseArtist === artist && releaseAlbum === album) {
+        logMessages.push(`Exact match found for group "${key}": Release ID ${release.id} ("${release.title}")`);
+      } else {
+        logMessages.push(`Partial match for group "${key}" found: Release ID ${release.id} ("${release.title}"). ` +
+                         `Extracted artist: "${releaseArtist}", album: "${releaseAlbum}" vs. expected artist: "${artist}", album: "${album}"`);
+      }
+      
       if (!isBookmarked(release.id)) {
         release.bookmarkedAt = new Date().toISOString();
         const bookmarks = getBookmarkedReleases();
         bookmarks.push(release);
         saveBookmarkedReleases(bookmarks);
         importedCount++;
+        logMessages.push(`Release ID ${release.id} added to bookmarks.`);
+      } else {
+        logMessages.push(`Release ID ${release.id} already bookmarked.`);
       }
+    } else {
+      logMessages.push(`No matching release found for group "${key}" (Artist: "${artist}", Album: "${album}").`);
     }
   }
+  
   hideProgressModal();
+  logMessages.push(`Import completed at: ${new Date().toISOString()}`);
+  logMessages.push(`Total releases imported: ${importedCount}`);
+  
+  // Trigger download of the log file
+  downloadLog(logMessages);
+  
   alert(`Import Collection Completed. Imported ${importedCount} album release(s) into bookmarks.`);
+}
+
+/* -----------------------
+   Utility: Download Log File
+------------------------- */
+function downloadLog(logMessages) {
+  const logContent = logMessages.join("\n");
+  const blob = new Blob([logContent], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `import_log_${new Date().toISOString().replace(/[:.]/g, "-")}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 /* -----------------------
