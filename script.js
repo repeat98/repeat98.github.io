@@ -1217,7 +1217,7 @@ function parseFileName(fileName) {
 }
 
 /* -----------------------
-   Updated: Import Collection Matching with Batched Queries
+   Updated: Import Collection Matching with Batched Queries (Batch Size = 1000)
 ------------------------- */
 async function importCollection(files) {
   if (typeof jsmediatags === "undefined") {
@@ -1309,10 +1309,9 @@ async function importCollection(files) {
   }
   
   // --- Batch Matching ---
-  // Convert grouped entries to an array and decide on a batch size
   const groupEntries = Array.from(albumArtistMap.entries());
   logMessages.push(`Total album-artist groups to process: ${groupEntries.length}`);
-  const batchSize = 10; // Adjust as needed to reduce the number of DB queries
+  const batchSize = 1000; // Updated batch size
   let importedCount = 0;
   
   // Process groups in batches
@@ -1327,7 +1326,6 @@ async function importCollection(files) {
     // For each group, create a condition like: title.ilike.%artist% - %album%
     const conditions = batch.map(([key, group]) => {
       const { artist, album } = group;
-      // Escape special characters if necessary (this example assumes clean data)
       return `title.ilike.%${artist}% - %${album}%`;
     });
     const orCondition = conditions.join(",");
@@ -1381,7 +1379,6 @@ async function importCollection(files) {
   
   alert(`Import Collection Completed. Imported ${importedCount} album release(s) into bookmarks.`);
 }
-
 
 /* -----------------------
    Utility: Download Log File
