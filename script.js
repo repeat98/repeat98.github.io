@@ -22,6 +22,9 @@ let sortConfig = { key: "title", order: "asc" };
 
 let youtubeApiReady = false;
 
+// Global flag for cancellation
+let cancelImport = false;
+
 // ------------------ Bookmark Data ------------------
 function getBookmarkedReleases() {
   return JSON.parse(localStorage.getItem("bookmarkedReleases") || "[]");
@@ -1105,6 +1108,9 @@ async function importDiscogsCollection(file) {
 // Any matching release is then added to the bookmarks.
 
 // NEW: Show Progress Modal
+/* -----------------------
+   Updated: Show Progress Modal with Cancel Button and Estimated Time
+------------------------- */
 function showProgressModal(message, progress) {
   let modal = document.getElementById("progressModal");
   if (!modal) {
@@ -1116,10 +1122,12 @@ function showProgressModal(message, progress) {
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">Progress</h5>
+            <h5 class="modal-title">Processing Import</h5>
+            <button type="button" class="btn-close" id="progressModalCancelBtn" aria-label="Cancel"></button>
           </div>
           <div class="modal-body">
             <p id="progressModalMessage">${message}</p>
+            <p id="estimatedTime"></p>
             <div class="progress">
               <div id="progressModalBar" class="progress-bar" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100"></div>
             </div>
@@ -1133,19 +1141,51 @@ function showProgressModal(message, progress) {
     bar.style.width = `${progress}%`;
     bar.setAttribute("aria-valuenow", progress);
   }
+  // Attach cancel event listener
+  const cancelBtn = document.getElementById("progressModalCancelBtn");
+  if (cancelBtn) {
+    cancelBtn.onclick = () => {
+      cancelImport = true;
+    };
+  }
   const bsModal = new bootstrap.Modal(modal, { backdrop: "static", keyboard: false });
   bsModal.show();
   modal.bsModal = bsModal;
 }
 
-// NEW: Update Progress Modal
-function updateProgressModal(message, progress) {
+
+/* -----------------------
+   Updated: Update Progress Modal with Estimated Time (formatted as hours, minutes, seconds)
+------------------------- */
+function updateProgressModal(message, progress, startTime) {
   const modal = document.getElementById("progressModal");
   if (modal) {
     document.getElementById("progressModalMessage").textContent = message;
     const bar = document.getElementById("progressModalBar");
     bar.style.width = `${progress}%`;
     bar.setAttribute("aria-valuenow", progress);
+    
+    // Calculate estimated time remaining based on elapsed time
+    const elapsed = (Date.now() - startTime) / 1000; // seconds
+    const estimatedTotal = progress > 0 ? (elapsed / progress) * 100 : 0;
+    const remaining = Math.max(estimatedTotal - elapsed, 0);
+
+    // Convert remaining seconds to hours, minutes, seconds
+    const hrs = Math.floor(remaining / 3600);
+    const mins = Math.floor((remaining % 3600) / 60);
+    const secs = Math.floor(remaining % 60);
+
+    // Format the estimated time string
+    let timeStr = "";
+    if (hrs > 0) {
+      timeStr += `${hrs} hour${hrs === 1 ? "" : "s"}, `;
+    }
+    if (mins > 0 || hrs > 0) {
+      timeStr += `${mins} minute${mins === 1 ? "" : "s"}, `;
+    }
+    timeStr += `${secs} second${secs === 1 ? "" : "s"}`;
+
+    document.getElementById("estimatedTime").textContent = `Estimated time remaining: ${timeStr}`;
   }
 }
 
@@ -1177,13 +1217,12 @@ function parseFileName(fileName) {
 }
 
 /* -----------------------
-   New Feature: Import Collection from Folder (Improved Matching with Fallback for Missing Metadata)
+   Updated: Import Collection from Folder (Improved Matching with Cancellation, Estimated Time, and One Track per Release)
 ------------------------- */
 // This function uses jsmediatags to read metadata from audio files.
-// It groups files by a composite key of artist and album. If metadata is missing,
+// Files are grouped by a composite key of artist and album. If metadata is missing,
 // it will attempt to extract the information from the file name (expecting "Artist - Album").
-// Then it queries the database for a release whose title is formatted as "Artist - release title".
-// The matching uses both the artist and album fields for increased accuracy.
+// Only one matching query is sent per group (release), and the user can cancel the process.
 // A detailed log of the scanning and matching process is generated and downloaded.
 async function importCollection(files) {
   if (typeof jsmediatags === "undefined") {
@@ -1191,11 +1230,15 @@ async function importCollection(files) {
     return;
   }
   
+  // Reset cancellation flag at start
+  cancelImport = false;
+  
   // Initialize log array to capture the scanning and matching process
   const logMessages = [];
   logMessages.push(`Import started at: ${new Date().toISOString()}`);
   
-  // Show the progress modal
+  // Show the progress modal and record start time
+  const startTime = Date.now();
   showProgressModal("Processing files...", 0);
   
   // Group audio files by composite key (artist|album)
@@ -1213,6 +1256,10 @@ async function importCollection(files) {
   
   // Process each file
   for (const file of files) {
+    if (cancelImport) {
+      logMessages.push("Import cancelled by user during file processing.");
+      break;
+    }
     if (!file.type.startsWith("audio/")) continue;
     await new Promise((resolve) => {
       jsmediatags.read(file, {
@@ -1251,29 +1298,41 @@ async function importCollection(files) {
           }
           
           processedFiles++;
-          updateProgressModal(`Processing files... (${processedFiles}/${totalAudioFiles})`, Math.round((processedFiles / totalAudioFiles) * 100));
+          updateProgressModal(`Processing files... (${processedFiles}/${totalAudioFiles})`, Math.round((processedFiles / totalAudioFiles) * 100), startTime);
           resolve();
         },
         onError: function(error) {
           logMessages.push(`Error reading file "${file.name}": ${error.type}`);
           processedFiles++;
-          updateProgressModal(`Processing files... (${processedFiles}/${totalAudioFiles})`, Math.round((processedFiles / totalAudioFiles) * 100));
+          updateProgressModal(`Processing files... (${processedFiles}/${totalAudioFiles})`, Math.round((processedFiles / totalAudioFiles) * 100), startTime);
           resolve();
         }
       });
     });
   }
   
-  // Now process each album-artist group and try to match with a release in the database
+  if (cancelImport) {
+    hideProgressModal();
+    logMessages.push("Import cancelled by user. Matched releases up to this point have been retained.");
+    downloadLog(logMessages);
+    alert("Import cancelled. Releases matched so far have been added.");
+    return;
+  }
+  
+  // Process each album-artist group (one matching query per group)
   let importedCount = 0;
   const groupEntries = Array.from(albumArtistMap.entries());
   logMessages.push(`Total album-artist groups to process: ${groupEntries.length}`);
   
   for (let i = 0; i < groupEntries.length; i++) {
+    if (cancelImport) {
+      logMessages.push("Import cancelled by user during matching process.");
+      break;
+    }
     const [key, group] = groupEntries[i];
     const { artist, album } = group;
     logMessages.push(`Matching group "${key}" (${i + 1}/${groupEntries.length}), containing ${group.files.length} file(s).`);
-    updateProgressModal(`Matching group "${key}" (${i + 1}/${groupEntries.length})`, Math.round(((i + 1) / groupEntries.length) * 100));
+    updateProgressModal(`Matching group "${key}" (${i + 1}/${groupEntries.length})`, Math.round(((i + 1) / groupEntries.length) * 100), startTime);
     
     // Query for a release that matches the expected format: "Artist - release title"
     // and that contains the album name within the release title.
@@ -1327,6 +1386,7 @@ async function importCollection(files) {
   
   alert(`Import Collection Completed. Imported ${importedCount} album release(s) into bookmarks.`);
 }
+
 
 /* -----------------------
    Utility: Download Log File
