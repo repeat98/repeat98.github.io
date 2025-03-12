@@ -319,8 +319,8 @@ function loadBookmarks(page = 1) {
          aVal = parseFloat(aVal) || 0;
          bVal = parseFloat(bVal) || 0;
        } else if (sortConfig.key === "rating_coeff") {
-         aVal = parseFloat(a.average_rating) || 0;
-         bVal = parseFloat(b.average_rating) || 0;
+         aVal = parseFloat(a.rating_coeff) || 0;
+         bVal = parseFloat(b.rating_coeff) || 0;
        }
        if (aVal < bVal) return sortConfig.order === "asc" ? -1 : 1;
        if (aVal > bVal) return sortConfig.order === "asc" ? 1 : -1;
