@@ -1311,7 +1311,7 @@ async function importCollection(files) {
   // --- Batch Matching ---
   const groupEntries = Array.from(albumArtistMap.entries());
   logMessages.push(`Total album-artist groups to process: ${groupEntries.length}`);
-  const batchSize = 1000; // Updated batch size
+  const batchSize = 100; // Updated batch size
   let importedCount = 0;
   
   // Process groups in batches
