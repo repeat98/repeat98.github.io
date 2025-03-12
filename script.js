@@ -71,11 +71,11 @@ function toggleBookmark(release) {
     }
   }
   
-  // If in bookmark tab, you may want to update the list:
+  // If in bookmark tab, update the list:
   if (activeTab === "bookmark") {
     loadBookmarks(currentPage);
   }
-  // Remove the call to renderTable() here to prevent full re-render of the videos.
+  // Do not call renderTable() here to prevent full re-render.
 }
 
 // ------------------ Helper Functions ------------------
@@ -228,61 +228,80 @@ async function fetchShuffleReleases() {
   }
 }
 
+/* ------------------
+   Updated: Load Personalized Shuffle Data using Two-Step Approach
+---------------------*/
 async function loadPersonalizedShuffleData() {
   const { data: candidateData } = await fetchShuffleReleases();
 
-  // Retrieve user interactions and bookmarks
-  const interactedReleasesIds = JSON.parse(localStorage.getItem("interactedReleases")) || [];
+  // Retrieve bookmarks and normalize preferred labels and artists
   const bookmarked = getBookmarkedReleases();
-
-  let preferredGenres = {};
-  let preferredStyles = {};
-
+  const preferredLabels = new Set();
+  const preferredArtists = new Set();
   bookmarked.forEach(release => {
-    if (release.genre) {
-      release.genre.split(",").forEach(g => {
-        const genre = g.trim();
-        if (genre) preferredGenres[genre] = (preferredGenres[genre] || 0) + 1;
-      });
+    if (release.label) {
+      preferredLabels.add(release.label.toLowerCase().trim());
     }
-    if (release.style) {
-      release.style.split(",").forEach(s => {
-        const style = s.trim();
-        if (style) preferredStyles[style] = (preferredStyles[style] || 0) + 1;
-      });
+    if (release.artist) {
+      preferredArtists.add(release.artist.toLowerCase().trim());
     }
   });
 
-  candidateData.forEach(release => {
-    let score = 0;
-    if (bookmarked.some(r => r.id === release.id)) score += 2;
-    if (interactedReleasesIds.includes(release.id)) score += 1;
-    if (release.average_rating) score += parseFloat(release.average_rating);
-    if (release.rating_count) score += Math.log(release.rating_count + 1);
-    if (release.genre) {
-      release.genre.split(",").forEach(g => {
-        const genre = g.trim();
-        // Increased weighting: multiplier changed from 0.5 to 1.0
-        if (preferredGenres[genre]) score += preferredGenres[genre] * 2.0;
-      });
-    }
-    if (release.style) {
-      release.style.split(",").forEach(s => {
-        const style = s.trim();
-        // Increased weighting: multiplier changed from 0.5 to 1.0
-        if (preferredStyles[style]) score += preferredStyles[style] * 2.0;
-      });
-    }
-    const currentSearch = document.getElementById("searchInput").value.trim().toLowerCase();
-    if (currentSearch && release.title.toLowerCase().includes(currentSearch)) {
-      score += 1;
-    }
-    release.personalizedScore = score;
+  // Exclude candidate releases that are already bookmarked
+  const candidates = candidateData.filter(release => {
+    return !bookmarked.some(b => String(b.id) === String(release.id));
   });
 
-  const sorted = candidateData.sort((a, b) => b.personalizedScore - a.personalizedScore);
-  filteredData = sorted.slice(0, 5);
-  totalRecords = filteredData.length;
+  // Separate candidates into those matching preferred labels or artists and those not matching
+  const matchingCandidates = [];
+  const otherCandidates = [];
+  candidates.forEach(release => {
+    let hasMatch = false;
+    if (release.label && preferredLabels.has(release.label.toLowerCase().trim())) {
+      hasMatch = true;
+    }
+    if (release.artist && preferredArtists.has(release.artist.toLowerCase().trim())) {
+      hasMatch = true;
+    }
+    // Additional scoring: for non-matching candidates, boost if title matches search query
+    if (hasMatch) {
+      matchingCandidates.push(release);
+    } else {
+      // Calculate a basic score based on average_rating and rating_count
+      let score = 0;
+      if (release.average_rating) {
+        score += parseFloat(release.average_rating);
+      }
+      if (release.rating_count) {
+        score += Math.log(release.rating_count + 1);
+      }
+      const currentSearch = document.getElementById("searchInput").value.trim().toLowerCase();
+      if (currentSearch && release.title.toLowerCase().includes(currentSearch)) {
+        score += 1;
+      }
+      release.basicScore = score;
+      otherCandidates.push(release);
+    }
+  });
+
+  // Sort matching candidates arbitrarily (or by other criteria if needed)
+  // For example, here we sort by average rating descending.
+  matchingCandidates.sort((a, b) => (parseFloat(b.average_rating) || 0) - (parseFloat(a.average_rating) || 0));
+  // Sort non-matching candidates by basicScore descending.
+  otherCandidates.sort((a, b) => b.basicScore - a.basicScore);
+
+  // Combine lists; if matchingCandidates are enough, take them, else fill with others.
+  let recommended = [];
+  if (matchingCandidates.length >= 5) {
+    recommended = matchingCandidates.slice(0, 5);
+  } else {
+    recommended = matchingCandidates;
+    const needed = 5 - recommended.length;
+    recommended = recommended.concat(otherCandidates.slice(0, needed));
+  }
+  
+  filteredData = recommended;
+  totalRecords = recommended.length;
   currentPage = 1;
   renderTable();
   document.getElementById("pagination").style.display = "none";
@@ -408,10 +427,6 @@ async function mergeUserData(file) {
         const importedInteracted = imported.interactedReleases || [];
         const mergedInteracted = Array.from(new Set([...currentInteracted, ...importedInteracted]));
         localStorage.setItem("interactedReleases", JSON.stringify(mergedInteracted));
-
-        // Optionally merge tableColumnWidths if needed
-        // Here we simply keep the current settings
-        // Optionally, you might want to merge darkModeEnabled and sortConfig as well
 
         if (activeTab === "bookmark") {
           loadBookmarks(currentPage);
@@ -1260,7 +1275,9 @@ function importUserData(file) {
   reader.readAsText(file);
 }
 
-// ------------------ Event Tracking ------------------
+/* -----------------------
+   Event Tracking
+------------------------- */
 function trackFilterApplied() {
   const genre = document.getElementById("genre").value;
   const style = document.getElementById("style").value;
