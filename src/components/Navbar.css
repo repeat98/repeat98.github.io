@@ -1,0 +1,76 @@
+/* Navbar container and brand */
+.navbar {
+    background-color: var(--primary-color) !important;
+  }
+  .navbar-brand {
+    font-weight: bold;
+    font-size: 16px;
+    color: var(--text-color);
+  }
+  
+  /* Right toggle group styling */
+  .right-toggle-group {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .right-toggle-group .tab-toggle {
+    flex: 1;
+  }
+  
+  /* Tab toggle styles */
+  .tab-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .tab-icon {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    transition: opacity 0.3s;
+    opacity: 0.6;
+    border: 1px solid transparent;
+    padding: 4px;
+    border-radius: 4px;
+    background: transparent;
+  }
+  .tab-icon.active {
+    opacity: 1;
+  }
+  .tab-icon i {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+  }
+  .tab-icon input[type="text"] {
+    width: 0;
+    border: none;
+    background: transparent;
+    outline: none;
+    color: white;
+    padding: 0;
+    margin: 0;
+    transition: width 0.3s, padding 0.3s;
+  }
+  .tab-icon.active input[type="text"] {
+    width: 110px;
+    padding-right: 8px;
+  }
+  
+  /* Dark mode toggle styling */
+  .dark-mode-toggle span {
+    cursor: pointer;
+    font-size: 1.25rem;
+  }
+  .dark-mode-toggle .moon-icon {
+    display: inline;
+  }
+  .dark-mode-toggle .sun-icon {
+    display: none;
+  }
+  body.dark-mode .moon-icon {
+    display: none;
+  }
+  body.dark-mode .sun-icon {
+    display: inline;
+  }

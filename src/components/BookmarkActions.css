@@ -1,0 +1,10 @@
+/* Basic styles for BookmarkActions component */
+.bookmark-actions {
+    display: none; /* Initially hidden; shown via JS when needed */
+    margin-top: 16px;
+  }
+  
+  /* Optionally, you can add custom styling for the buttons */
+  .bookmark-actions .btn {
+    /* You may override button colors or spacing here if desired */
+  }

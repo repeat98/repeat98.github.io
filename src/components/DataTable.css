@@ -1,0 +1,96 @@
+.table-container {
+    border-radius: 0;
+    overflow: visible;
+    background: var(--bg-color);
+    transition: background-color var(--transition-speed);
+  }
+  
+  .table-container table.table {
+    border-collapse: separate !important;
+    border-spacing: 0 8px !important;
+    background: transparent !important;
+  }
+  
+  .table-container thead tr th {
+    background-color: var(--table-header-bg) !important;
+    color: var(--table-header-text) !important;
+    border: none;
+    text-transform: uppercase;
+    opacity: 0.85;
+    font-weight: normal;
+    font-size: 12px;
+  }
+  
+  .table-container tbody tr {
+    background-color: var(--card-bg) !important;
+    border: none;
+    transition: background-color var(--transition-speed);
+  }
+  
+  .table-container tbody tr td {
+    background-color: transparent !important;
+    vertical-align: middle;
+    font-size: 12px;
+    padding: 16px;
+    border: none;
+  }
+  
+  .table-container tbody tr:hover {
+    background-color: inherit !important;
+  }
+  
+  .no-results {
+    text-align: center;
+    padding: 2rem 0;
+    color: var(--text-color);
+  }
+  
+  .no-results i {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+  }
+  
+  .resizer {
+    width: 5px;
+    height: 100%;
+    cursor: col-resize;
+    position: absolute;
+    right: 0;
+    top: 0;
+    user-select: none;
+  }
+  
+  .copy-btn {
+    border: none;
+    background: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--text-color) !important;
+    margin-left: 0.5rem;
+    font-size: 1rem;
+    transition: color var(--transition-speed);
+  }
+  
+  .copy-btn:hover {
+    color: #fff !important;
+  }
+  
+  .badge-genre,
+  .badge-style {
+    border-radius: 16px;
+    padding: 2px 8px;
+    font-size: 12px;
+    display: inline-block;
+    white-space: nowrap;
+    margin: 4px 4px 0 0;
+  }
+  
+  .badge-genre {
+    background: var(--badge-genre-bg) !important;
+    color: var(--badge-genre-text) !important;
+  }
+  
+  .badge-style {
+    background: var(--badge-style-bg) !important;
+    color: var(--badge-style-text) !important;
+  }
