@@ -155,18 +155,65 @@ async function loadData(page = 1) {
 }
 
 async function fetchShuffleReleases() {
-  // Similar filtering logic as fetchReleases (omitted here for brevity)
-  const { data: allData, count, error } = await supabaseClient
-    .from("releases")
-    .select("*", { count: "exact" });
+  // Apply filtering logic (same as in fetchReleases)
+  const selectedGenre = document.getElementById("genre").value;
+  const selectedStyle = document.getElementById("style").value;
+  const { min: yearMin, max: yearMax } = parseYearRange();
+  const ratingRange = parseRangeInput(document.getElementById("rating_range").value.trim());
+  const ratingCountRange = parseRangeInput(document.getElementById("rating_count_range").value.trim());
+  const priceRange = parseRangeInput(document.getElementById("price_range").value.trim());
+  
+  let query = supabaseClient.from("releases").select("*", { count: "exact" });
+  const searchQuery = document.getElementById("searchInput").value.trim();
+  if (searchQuery) {
+    query = query.ilike("title", `%${searchQuery}%`);
+  }
+  if (selectedGenre) {
+    query = query.ilike("genre", `%${selectedGenre}%`);
+  }
+  if (selectedStyle) {
+    query = query.ilike("style", `%${selectedStyle}%`);
+  }
+  if (yearMin !== -Infinity) query = query.gte("year", yearMin);
+  if (yearMax !== Infinity) query = query.lte("year", yearMax);
+  if (ratingRange.min !== -Infinity) query = query.gte("average_rating", ratingRange.min);
+  if (ratingRange.max !== Infinity) query = query.lte("average_rating", ratingRange.max);
+  if (ratingCountRange.min !== -Infinity) query = query.gte("rating_count", ratingCountRange.min);
+  if (ratingCountRange.max !== Infinity) query = query.lte("rating_count", ratingCountRange.max);
+  if (priceRange.min !== -Infinity) query = query.gte("lowest_price", priceRange.min);
+  if (priceRange.max !== Infinity) query = query.lte("lowest_price", priceRange.max);
+
+  // Get the filtered count and data
+  const { data: allData, count, error } = await query;
   if (error) {
     console.error("Error fetching shuffle data:", error);
     return { data: [], count: 0 };
   }
+  
   const shuffleSize = 5;
   if (count > shuffleSize) {
     const randomOffset = Math.floor(Math.random() * (count - shuffleSize + 1));
-    let rangeQuery = supabaseClient.from("releases").select("*").range(randomOffset, randomOffset + shuffleSize - 1);
+    // Rebuild the query for the range selection using the same filters
+    let rangeQuery = supabaseClient.from("releases").select("*");
+    if (searchQuery) {
+      rangeQuery = rangeQuery.ilike("title", `%${searchQuery}%`);
+    }
+    if (selectedGenre) {
+      rangeQuery = rangeQuery.ilike("genre", `%${selectedGenre}%`);
+    }
+    if (selectedStyle) {
+      rangeQuery = rangeQuery.ilike("style", `%${selectedStyle}%`);
+    }
+    if (yearMin !== -Infinity) rangeQuery = rangeQuery.gte("year", yearMin);
+    if (yearMax !== Infinity) rangeQuery = rangeQuery.lte("year", yearMax);
+    if (ratingRange.min !== -Infinity) rangeQuery = rangeQuery.gte("average_rating", ratingRange.min);
+    if (ratingRange.max !== Infinity) rangeQuery = rangeQuery.lte("average_rating", ratingRange.max);
+    if (ratingCountRange.min !== -Infinity) rangeQuery = rangeQuery.gte("rating_count", ratingCountRange.min);
+    if (ratingCountRange.max !== Infinity) rangeQuery = rangeQuery.lte("rating_count", ratingCountRange.max);
+    if (priceRange.min !== -Infinity) rangeQuery = rangeQuery.gte("lowest_price", priceRange.min);
+    if (priceRange.max !== Infinity) rangeQuery = rangeQuery.lte("lowest_price", priceRange.max);
+    
+    rangeQuery = rangeQuery.range(randomOffset, randomOffset + shuffleSize - 1);
     const { data, error: err } = await rangeQuery;
     if (err) {
       console.error("Error fetching shuffle data with range:", err);
