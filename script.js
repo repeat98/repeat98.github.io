@@ -312,15 +312,33 @@ async function loadPersonalizedShuffleData() {
 }
 
 async function loadShuffleData() {
-  if (personalizedEnabled) {
-    await loadPersonalizedShuffleData();
-  } else {
-    const { data, count } = await fetchShuffleReleases();
-    filteredData = data;
-    totalRecords = count;
-    currentPage = 1;
-    renderTable();
-    document.getElementById("pagination").style.display = "none";
+  try {
+    // Show loading state
+    const tbody = document.getElementById("releases-table-body");
+    tbody.innerHTML = `<tr><td class="no-results" colspan="12">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <p>Loading shuffle results...</p>
+    </td></tr>`;
+
+    if (personalizedEnabled) {
+      await loadPersonalizedShuffleData();
+    } else {
+      const { data, count } = await fetchShuffleReleases();
+      filteredData = data;
+      totalRecords = count;
+      currentPage = 1;
+      renderTable();
+      document.getElementById("pagination").style.display = "none";
+    }
+  } catch (error) {
+    console.error("Error in loadShuffleData:", error);
+    const tbody = document.getElementById("releases-table-body");
+    tbody.innerHTML = `<tr><td class="no-results" colspan="12">
+      <i class="bi bi-exclamation-triangle-fill"></i>
+      <p>An error occurred while loading shuffle results. Please try again.</p>
+    </td></tr>`;
   }
 }
 
