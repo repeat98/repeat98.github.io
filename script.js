@@ -104,54 +104,78 @@ function parseRangeInput(rangeStr) {
 
 // ------------------ Query Functions ------------------
 async function fetchReleases({ page = 1 } = {}) {
-  const selectedGenre = document.getElementById("genre").value;
-  const selectedStyle = document.getElementById("style").value;
-  const { min: yearMin, max: yearMax } = parseYearRange();
-  const ratingRange = parseRangeInput(document.getElementById("rating_range").value.trim());
-  const ratingCountRange = parseRangeInput(document.getElementById("rating_count_range").value.trim());
-  const priceRange = parseRangeInput(document.getElementById("price_range").value.trim());
-  let query = supabaseClient.from("releases").select("*", { count: "exact" });
-  const searchQuery = document.getElementById("searchInput").value.trim();
-  if (searchQuery) {
-    query = query.ilike("title", `%${searchQuery}%`);
-  }
-  if (selectedGenre) {
-    query = query.ilike("genre", `%${selectedGenre}%`);
-  }
-  if (selectedStyle) {
-    query = query.ilike("style", `%${selectedStyle}%`);
-  }
-  if (yearMin !== -Infinity) query = query.gte("year", yearMin);
-  if (yearMax !== Infinity) query = query.lte("year", yearMax);
-  if (ratingRange.min !== -Infinity) query = query.gte("average_rating", ratingRange.min);
-  if (ratingRange.max !== Infinity) query = query.lte("average_rating", ratingRange.max);
-  if (ratingCountRange.min !== -Infinity) query = query.gte("rating_count", ratingCountRange.min);
-  if (ratingCountRange.max !== Infinity) query = query.lte("rating_count", ratingCountRange.max);
-  if (priceRange.min !== -Infinity) query = query.gte("lowest_price", priceRange.min);
-  if (priceRange.max !== Infinity) query = query.lte("lowest_price", priceRange.max);
-  if (sortConfig.key) {
-    query = query.order(sortConfig.key, { ascending: sortConfig.order === "asc" });
-  }
-  const start = (page - 1) * pageSize;
-  const end = start + pageSize - 1;
-  query = query.range(start, end);
-  const { data, count, error } = await query;
-  if (error) {
-    console.error("Error fetching releases data:", error);
+  try {
+    const selectedGenre = document.getElementById("genre").value;
+    const selectedStyle = document.getElementById("style").value;
+    const { min: yearMin, max: yearMax } = parseYearRange();
+    const ratingRange = parseRangeInput(document.getElementById("rating_range").value.trim());
+    const ratingCountRange = parseRangeInput(document.getElementById("rating_count_range").value.trim());
+    const priceRange = parseRangeInput(document.getElementById("price_range").value.trim());
+    let query = supabaseClient.from("releases").select("*", { count: "exact" });
+    const searchQuery = document.getElementById("searchInput").value.trim();
+    
+    // Show loading state
+    const tbody = document.getElementById("releases-table-body");
+    tbody.innerHTML = `<tr><td class="no-results" colspan="12">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <p>Searching...</p>
+    </td></tr>`;
+
+    if (searchQuery) {
+      query = query.ilike("title", `%${searchQuery}%`);
+    }
+    if (selectedGenre) {
+      query = query.ilike("genre", `%${selectedGenre}%`);
+    }
+    if (selectedStyle) {
+      query = query.ilike("style", `%${selectedStyle}%`);
+    }
+    if (yearMin !== -Infinity) query = query.gte("year", yearMin);
+    if (yearMax !== Infinity) query = query.lte("year", yearMax);
+    if (ratingRange.min !== -Infinity) query = query.gte("average_rating", ratingRange.min);
+    if (ratingRange.max !== Infinity) query = query.lte("average_rating", ratingRange.max);
+    if (ratingCountRange.min !== -Infinity) query = query.gte("rating_count", ratingCountRange.min);
+    if (ratingCountRange.max !== Infinity) query = query.lte("rating_count", ratingCountRange.max);
+    if (priceRange.min !== -Infinity) query = query.gte("lowest_price", priceRange.min);
+    if (priceRange.max !== Infinity) query = query.lte("lowest_price", priceRange.max);
+    if (sortConfig.key) {
+      query = query.order(sortConfig.key, { ascending: sortConfig.order === "asc" });
+    }
+    const start = (page - 1) * pageSize;
+    const end = start + pageSize - 1;
+    query = query.range(start, end);
+    const { data, count, error } = await query;
+    if (error) {
+      console.error("Error fetching releases data:", error);
+      return { data: [], count: 0 };
+    }
+    return { data, count };
+  } catch (error) {
+    console.error("Error in fetchReleases:", error);
     return { data: [], count: 0 };
   }
-  return { data, count };
 }
 
 async function loadData(page = 1) {
-  const { data, count } = await fetchReleases({ page });
-  filteredData = data;
-  totalRecords = count || 0;
-  totalPages = Math.ceil(totalRecords / pageSize) || 1;
-  currentPage = page;
-  renderTable();
-  renderPagination();
-  document.getElementById("pagination").style.display = "block";
+  try {
+    const { data, count } = await fetchReleases({ page });
+    filteredData = data;
+    totalRecords = count || 0;
+    totalPages = Math.ceil(totalRecords / pageSize) || 1;
+    currentPage = page;
+    renderTable();
+    renderPagination();
+    document.getElementById("pagination").style.display = "block";
+  } catch (error) {
+    console.error("Error in loadData:", error);
+    const tbody = document.getElementById("releases-table-body");
+    tbody.innerHTML = `<tr><td class="no-results" colspan="12">
+      <i class="bi bi-exclamation-triangle-fill"></i>
+      <p>An error occurred while loading results. Please try again.</p>
+    </td></tr>`;
+  }
 }
 
 async function fetchShuffleReleases() {
@@ -1067,9 +1091,22 @@ document.addEventListener("DOMContentLoaded", () => {
     trackFilterApplied();
     loadShuffleData();
   });
+
+  // Debounce search input to prevent too many requests
+  let searchTimeout;
+  document.getElementById("searchInput").addEventListener("input", (e) => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      if (activeTab === "search") {
+        loadData(1);
+      }
+    }, 500); // Wait 500ms after user stops typing
+  });
+
   document.getElementById("searchInput").addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
+      clearTimeout(searchTimeout); // Clear any pending timeout
       gtag("event", "search_query", {
         query: document.getElementById("searchInput").value.trim()
       });
@@ -1083,6 +1120,7 @@ document.addEventListener("DOMContentLoaded", () => {
       loadData(1);
     }
   });
+
   document.getElementById("export-btn").addEventListener("click", exportUserData);
   document.getElementById("import-btn").addEventListener("click", () => {
     document.getElementById("import-file").click();
