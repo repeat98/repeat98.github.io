@@ -103,7 +103,10 @@ function parseRangeInput(rangeStr) {
 }
 
 // ------------------ Query Functions ------------------
-async function fetchReleases({ page = 1 } = {}) {
+async function fetchReleases({ page = 1, retryCount = 0 } = {}) {
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY = 1000; // 1 second
+
   try {
     const selectedGenre = document.getElementById("genre").value;
     const selectedStyle = document.getElementById("style").value;
@@ -120,7 +123,7 @@ async function fetchReleases({ page = 1 } = {}) {
       <div class="spinner-border text-primary" role="status">
         <span class="visually-hidden">Loading...</span>
       </div>
-      <p>Searching...</p>
+      <p>Searching${retryCount > 0 ? ` (Attempt ${retryCount + 1}/${MAX_RETRIES})` : ''}...</p>
     </td></tr>`;
 
     if (searchQuery) {
@@ -146,14 +149,49 @@ async function fetchReleases({ page = 1 } = {}) {
     const start = (page - 1) * pageSize;
     const end = start + pageSize - 1;
     query = query.range(start, end);
+    
     const { data, count, error } = await query;
+    
     if (error) {
-      console.error("Error fetching releases data:", error);
+      console.error(`Error fetching releases data (attempt ${retryCount + 1}/${MAX_RETRIES}):`, error);
+      
+      // If we haven't exceeded max retries, try again after a delay
+      if (retryCount < MAX_RETRIES) {
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+        return fetchReleases({ page, retryCount: retryCount + 1 });
+      }
+      
+      // If we've exceeded retries, show error message
+      tbody.innerHTML = `<tr><td class="no-results" colspan="12">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <p>Failed to load results after ${MAX_RETRIES} attempts. Please try again.</p>
+      </td></tr>`;
       return { data: [], count: 0 };
     }
+
+    // If we got data but it's empty and we haven't exceeded retries, try again
+    if ((!data || data.length === 0) && retryCount < MAX_RETRIES) {
+      console.log(`No results found (attempt ${retryCount + 1}/${MAX_RETRIES}), retrying...`);
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+      return fetchReleases({ page, retryCount: retryCount + 1 });
+    }
+
     return { data, count };
   } catch (error) {
-    console.error("Error in fetchReleases:", error);
+    console.error(`Error in fetchReleases (attempt ${retryCount + 1}/${MAX_RETRIES}):`, error);
+    
+    // If we haven't exceeded max retries, try again after a delay
+    if (retryCount < MAX_RETRIES) {
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+      return fetchReleases({ page, retryCount: retryCount + 1 });
+    }
+    
+    // If we've exceeded retries, show error message
+    const tbody = document.getElementById("releases-table-body");
+    tbody.innerHTML = `<tr><td class="no-results" colspan="12">
+      <i class="bi bi-exclamation-triangle-fill"></i>
+      <p>Failed to load results after ${MAX_RETRIES} attempts. Please try again.</p>
+    </td></tr>`;
     return { data: [], count: 0 };
   }
 }
