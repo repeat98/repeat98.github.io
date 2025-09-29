@@ -266,6 +266,12 @@ body.dark-mode .sun-icon {
   gap: 8px;
   transition: background-color var(--transition-speed);
 }
+.filter-button-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
 .filter-group {
   position: relative;
   flex: 1;
@@ -652,6 +658,8 @@ a:active,
     display: flex;
     align-items: center;
     gap: 8px;
+    margin-left: auto;
+    flex-shrink: 0;
   }
 }
 

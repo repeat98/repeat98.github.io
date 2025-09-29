@@ -216,132 +216,184 @@ async function loadData(page = 1) {
   }
 }
 
-async function fetchShuffleReleases() {
-  // Apply filtering logic (same as in fetchReleases)
-  const selectedGenre = document.getElementById("genre").value;
-  const selectedStyle = document.getElementById("style").value;
-  const { min: yearMin, max: yearMax } = parseYearRange();
-  const ratingRange = parseRangeInput(document.getElementById("rating_range").value.trim());
-  const ratingCountRange = parseRangeInput(document.getElementById("rating_count_range").value.trim());
-  const priceRange = parseRangeInput(document.getElementById("price_range").value.trim());
-  
-  let query = supabaseClient.from("releases").select("*", { count: "exact" });
-  const searchQuery = document.getElementById("searchInput").value.trim();
-  if (searchQuery) {
-    query = query.ilike("title", `%${searchQuery}%`);
-  }
-  if (selectedGenre) {
-    query = query.ilike("genre", `%${selectedGenre}%`);
-  }
-  if (selectedStyle) {
-    query = query.ilike("style", `%${selectedStyle}%`);
-  }
-  if (yearMin !== -Infinity) query = query.gte("year", yearMin);
-  if (yearMax !== Infinity) query = query.lte("year", yearMax);
-  if (ratingRange.min !== -Infinity) query = query.gte("average_rating", ratingRange.min);
-  if (ratingRange.max !== Infinity) query = query.lte("average_rating", ratingRange.max);
-  if (ratingCountRange.min !== -Infinity) query = query.gte("rating_count", ratingCountRange.min);
-  if (ratingCountRange.max !== Infinity) query = query.lte("rating_count", ratingCountRange.max);
-  if (priceRange.min !== -Infinity) query = query.gte("lowest_price", priceRange.min);
-  if (priceRange.max !== Infinity) query = query.lte("lowest_price", priceRange.max);
+async function fetchShuffleReleases({ retryCount = 0 } = {}) {
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY = 1000; // 1 second
 
-  // Get the filtered count and data
-  const { data: allData, count, error } = await query;
-  if (error) {
-    console.error("Error fetching shuffle data:", error);
-    return { data: [], count: 0 };
-  }
-  
-  const shuffleSize = 5;
-  if (count > shuffleSize) {
-    const randomOffset = Math.floor(Math.random() * (count - shuffleSize + 1));
-    // Rebuild the query for the range selection using the same filters
-    let rangeQuery = supabaseClient.from("releases").select("*");
+  try {
+    // Apply filtering logic (same as in fetchReleases)
+    const selectedGenre = document.getElementById("genre").value;
+    const selectedStyle = document.getElementById("style").value;
+    const { min: yearMin, max: yearMax } = parseYearRange();
+    const ratingRange = parseRangeInput(document.getElementById("rating_range").value.trim());
+    const ratingCountRange = parseRangeInput(document.getElementById("rating_count_range").value.trim());
+    const priceRange = parseRangeInput(document.getElementById("price_range").value.trim());
+    
+    let query = supabaseClient.from("releases").select("*", { count: "exact" });
+    const searchQuery = document.getElementById("searchInput").value.trim();
     if (searchQuery) {
-      rangeQuery = rangeQuery.ilike("title", `%${searchQuery}%`);
+      query = query.ilike("title", `%${searchQuery}%`);
     }
     if (selectedGenre) {
-      rangeQuery = rangeQuery.ilike("genre", `%${selectedGenre}%`);
+      query = query.ilike("genre", `%${selectedGenre}%`);
     }
     if (selectedStyle) {
-      rangeQuery = rangeQuery.ilike("style", `%${selectedStyle}%`);
+      query = query.ilike("style", `%${selectedStyle}%`);
     }
-    if (yearMin !== -Infinity) rangeQuery = rangeQuery.gte("year", yearMin);
-    if (yearMax !== Infinity) rangeQuery = rangeQuery.lte("year", yearMax);
-    if (ratingRange.min !== -Infinity) rangeQuery = rangeQuery.gte("average_rating", ratingRange.min);
-    if (ratingRange.max !== Infinity) rangeQuery = rangeQuery.lte("average_rating", ratingRange.max);
-    if (ratingCountRange.min !== -Infinity) rangeQuery = rangeQuery.gte("rating_count", ratingCountRange.min);
-    if (ratingCountRange.max !== Infinity) rangeQuery = rangeQuery.lte("rating_count", ratingCountRange.max);
-    if (priceRange.min !== -Infinity) rangeQuery = rangeQuery.gte("lowest_price", priceRange.min);
-    if (priceRange.max !== Infinity) rangeQuery = rangeQuery.lte("lowest_price", priceRange.max);
-    
-    rangeQuery = rangeQuery.range(randomOffset, randomOffset + shuffleSize - 1);
-    const { data, error: err } = await rangeQuery;
-    if (err) {
-      console.error("Error fetching shuffle data with range:", err);
+    if (yearMin !== -Infinity) query = query.gte("year", yearMin);
+    if (yearMax !== Infinity) query = query.lte("year", yearMax);
+    if (ratingRange.min !== -Infinity) query = query.gte("average_rating", ratingRange.min);
+    if (ratingRange.max !== Infinity) query = query.lte("average_rating", ratingRange.max);
+    if (ratingCountRange.min !== -Infinity) query = query.gte("rating_count", ratingCountRange.min);
+    if (ratingCountRange.max !== Infinity) query = query.lte("rating_count", ratingCountRange.max);
+    if (priceRange.min !== -Infinity) query = query.gte("lowest_price", priceRange.min);
+    if (priceRange.max !== Infinity) query = query.lte("lowest_price", priceRange.max);
+
+    // Get the filtered count and data
+    const { data: allData, count, error } = await query;
+    if (error) {
+      console.error(`Error fetching shuffle data (attempt ${retryCount + 1}/${MAX_RETRIES}):`, error);
+      
+      // If we haven't exceeded max retries, try again after a delay
+      if (retryCount < MAX_RETRIES) {
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+        return fetchShuffleReleases({ retryCount: retryCount + 1 });
+      }
+      
       return { data: [], count: 0 };
     }
-    return { data, count: shuffleSize };
-  } else {
-    return { data: allData, count };
+    
+    const shuffleSize = 10; // Increased from 5 to 10
+    if (count > shuffleSize) {
+      // Optimize: Instead of rebuilding the query, use the existing query with range
+      const randomOffset = Math.floor(Math.random() * (count - shuffleSize + 1));
+      const { data, error: err } = await query.range(randomOffset, randomOffset + shuffleSize - 1);
+      
+      if (err) {
+        console.error(`Error fetching shuffle data with range (attempt ${retryCount + 1}/${MAX_RETRIES}):`, err);
+        
+        // If we haven't exceeded max retries, try again after a delay
+        if (retryCount < MAX_RETRIES) {
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+          return fetchShuffleReleases({ retryCount: retryCount + 1 });
+        }
+        
+        return { data: [], count: 0 };
+      }
+      
+      // If we got data but it's empty and we haven't exceeded retries, try again
+      if ((!data || data.length === 0) && retryCount < MAX_RETRIES) {
+        console.log(`No shuffle results found (attempt ${retryCount + 1}/${MAX_RETRIES}), retrying...`);
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+        return fetchShuffleReleases({ retryCount: retryCount + 1 });
+      }
+      
+      return { data, count: shuffleSize };
+    } else {
+      // If we got data but it's empty and we haven't exceeded retries, try again
+      if ((!allData || allData.length === 0) && retryCount < MAX_RETRIES) {
+        console.log(`No shuffle results found (attempt ${retryCount + 1}/${MAX_RETRIES}), retrying...`);
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+        return fetchShuffleReleases({ retryCount: retryCount + 1 });
+      }
+      
+      return { data: allData, count };
+    }
+  } catch (error) {
+    console.error(`Error in fetchShuffleReleases (attempt ${retryCount + 1}/${MAX_RETRIES}):`, error);
+    
+    // If we haven't exceeded max retries, try again after a delay
+    if (retryCount < MAX_RETRIES) {
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+      return fetchShuffleReleases({ retryCount: retryCount + 1 });
+    }
+    
+    return { data: [], count: 0 };
   }
 }
 
 // ------------------ Personalized Shuffle ------------------
 async function loadPersonalizedShuffleData() {
   const { data: candidateData } = await fetchShuffleReleases();
+  
+  // Cache bookmarked releases for performance
   const bookmarked = getBookmarkedReleases();
+  const bookmarkedIds = new Set(bookmarked.map(b => String(b.id)));
+  
+  // Build preference sets more efficiently
   const preferredLabels = new Set();
   const preferredArtists = new Set();
-  bookmarked.forEach(release => {
+  
+  for (const release of bookmarked) {
     if (release.label) {
       preferredLabels.add(release.label.toLowerCase().trim());
     }
     if (release.artist) {
       preferredArtists.add(release.artist.toLowerCase().trim());
     }
-  });
-  const candidates = candidateData.filter(release => {
-    return !bookmarked.some(b => String(b.id) === String(release.id));
-  });
+  }
+  
+  // Filter and categorize candidates in a single pass
   const matchingCandidates = [];
   const otherCandidates = [];
-  candidates.forEach(release => {
+  const currentSearch = document.getElementById("searchInput").value.trim().toLowerCase();
+  
+  for (const release of candidateData) {
+    // Skip if already bookmarked
+    if (bookmarkedIds.has(String(release.id))) {
+      continue;
+    }
+    
     let hasMatch = false;
+    let score = 0;
+    
+    // Check for label/artist matches
     if (release.label && preferredLabels.has(release.label.toLowerCase().trim())) {
       hasMatch = true;
     }
     if (release.artist && preferredArtists.has(release.artist.toLowerCase().trim())) {
       hasMatch = true;
     }
-    if (hasMatch) {
-      matchingCandidates.push(release);
-    } else {
-      let score = 0;
+    
+    // Calculate base score for non-matching candidates
+    if (!hasMatch) {
       if (release.average_rating) {
         score += parseFloat(release.average_rating);
       }
       if (release.rating_count) {
         score += Math.log(release.rating_count + 1);
       }
-      const currentSearch = document.getElementById("searchInput").value.trim().toLowerCase();
       if (currentSearch && release.title.toLowerCase().includes(currentSearch)) {
         score += 1;
       }
+    }
+    
+    // Add to appropriate array
+    if (hasMatch) {
+      matchingCandidates.push(release);
+    } else {
       release.basicScore = score;
       otherCandidates.push(release);
     }
-  });
+  }
+  
+  // Sort efficiently
   matchingCandidates.sort((a, b) => (parseFloat(b.average_rating) || 0) - (parseFloat(a.average_rating) || 0));
   otherCandidates.sort((a, b) => b.basicScore - a.basicScore);
-  let recommended = [];
-  if (matchingCandidates.length >= 5) {
-    recommended = matchingCandidates.slice(0, 5);
-  } else {
-    recommended = matchingCandidates;
-    const needed = 5 - recommended.length;
-    recommended = recommended.concat(otherCandidates.slice(0, needed));
+  
+  // Build final recommendation array
+  const recommended = [];
+  const maxResults = 10;
+  
+  // Add matching candidates first
+  recommended.push(...matchingCandidates.slice(0, maxResults));
+  
+  // Fill remaining slots with other candidates
+  if (recommended.length < maxResults) {
+    const needed = maxResults - recommended.length;
+    recommended.push(...otherCandidates.slice(0, needed));
   }
+  
   filteredData = recommended;
   totalRecords = recommended.length;
   currentPage = 1;
@@ -499,39 +551,71 @@ async function mergeUserData(file) {
 }
 
 // ------------------ Initialize Filters ------------------
+let filtersCache = null;
+
 async function initializeFilters() {
-  const { data, error } = await supabaseClient.from("releases").select("genre, style").limit(2000);
-  if (error) {
-    console.error("Error loading genres/styles:", error);
+  // Check if we have cached filter data
+  const cachedFilters = localStorage.getItem('filtersCache');
+  const cacheTimestamp = localStorage.getItem('filtersCacheTimestamp');
+  const now = Date.now();
+  const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+
+  if (cachedFilters && cacheTimestamp && (now - parseInt(cacheTimestamp)) < CACHE_DURATION) {
+    // Use cached data
+    const { genres, styles } = JSON.parse(cachedFilters);
+    populateFilterOptions(genres, styles);
     return;
   }
-  const genresSet = new Set();
-  const stylesSet = new Set();
-  data.forEach((row) => {
-    if (row.genre) {
-      row.genre.split(",").forEach((g) => {
-        if (g.trim()) genresSet.add(g.trim());
-      });
+
+  // Fetch fresh data
+  try {
+    const { data, error } = await supabaseClient.from("releases").select("genre, style").limit(2000);
+    if (error) {
+      console.error("Error loading genres/styles:", error);
+      return;
     }
-    if (row.style) {
-      row.style.split(",").forEach((s) => {
-        if (s.trim()) stylesSet.add(s.trim());
-      });
-    }
-  });
-  const genresArray = Array.from(genresSet).sort();
-  const stylesArray = Array.from(stylesSet).sort();
+    
+    const genresSet = new Set();
+    const stylesSet = new Set();
+    data.forEach((row) => {
+      if (row.genre) {
+        row.genre.split(",").forEach((g) => {
+          if (g.trim()) genresSet.add(g.trim());
+        });
+      }
+      if (row.style) {
+        row.style.split(",").forEach((s) => {
+          if (s.trim()) stylesSet.add(s.trim());
+        });
+      }
+    });
+    
+    const genres = Array.from(genresSet).sort();
+    const styles = Array.from(stylesSet).sort();
+    
+    // Cache the results
+    localStorage.setItem('filtersCache', JSON.stringify({ genres, styles }));
+    localStorage.setItem('filtersCacheTimestamp', now.toString());
+    
+    populateFilterOptions(genres, styles);
+  } catch (error) {
+    console.error("Error initializing filters:", error);
+  }
+}
+
+function populateFilterOptions(genres, styles) {
   const genreSelect = document.getElementById("genre");
   genreSelect.innerHTML = '<option value="">All Genres</option>';
-  genresArray.forEach((genre) => {
+  genres.forEach((genre) => {
     const option = document.createElement("option");
     option.value = genre;
     option.textContent = genre;
     genreSelect.appendChild(option);
   });
+  
   const styleSelect = document.getElementById("style");
   styleSelect.innerHTML = '<option value="">All Styles</option>';
-  stylesArray.forEach((style) => {
+  styles.forEach((style) => {
     const option = document.createElement("option");
     option.value = style;
     option.textContent = style;
@@ -1075,26 +1159,30 @@ document.addEventListener("DOMContentLoaded", () => {
       loadBookmarks(1);
     }
   });
-  document.getElementById("genre").addEventListener("change", () => {
-    trackFilterApplied();
-    if (activeTab === "search") {
-      loadData(1);
-    } else if (activeTab === "shuffle") {
-      loadShuffleData();
-    } else if (activeTab === "bookmark") {
-      loadBookmarks(1);
-    }
-  });
-  document.getElementById("style").addEventListener("change", () => {
-    trackFilterApplied();
-    if (activeTab === "search") {
-      loadData(1);
-    } else if (activeTab === "shuffle") {
-      loadShuffleData();
-    } else if (activeTab === "bookmark") {
-      loadBookmarks(1);
-    }
-  });
+  // Debounced filter change handler
+  let filterTimeout;
+  function handleFilterChange() {
+    clearTimeout(filterTimeout);
+    filterTimeout = setTimeout(() => {
+      trackFilterApplied();
+      if (activeTab === "search") {
+        loadData(1);
+      } else if (activeTab === "shuffle") {
+        loadShuffleData();
+      } else if (activeTab === "bookmark") {
+        loadBookmarks(1);
+      }
+    }, 300); // 300ms debounce
+  }
+
+  document.getElementById("genre").addEventListener("change", handleFilterChange);
+  document.getElementById("style").addEventListener("change", handleFilterChange);
+  
+  // Add debouncing to range inputs
+  document.getElementById("year_range").addEventListener("input", handleFilterChange);
+  document.getElementById("rating_range").addEventListener("input", handleFilterChange);
+  document.getElementById("rating_count_range").addEventListener("input", handleFilterChange);
+  document.getElementById("price_range").addEventListener("input", handleFilterChange);
   const darkModeToggle = document.getElementById("darkModeToggle");
   if (localStorage.getItem("darkModeEnabled") === "true" || !localStorage.getItem("darkModeEnabled")) {
     document.body.classList.add("dark-mode");
