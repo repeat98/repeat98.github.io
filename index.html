@@ -49,8 +49,6 @@
     <!-- PapaParse -->
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
     
-    <!-- jsmediatags for metadata extraction (ensure this is loaded for the Import Collection feature) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
 
     <meta property="og:title" content="Gruuvs" />
     <meta
@@ -221,30 +219,6 @@
                 />
               </div>
             </div>
-            <!-- New personalized recommendations toggle (visible only in shuffle tab) -->
-            <div
-              class="filter-group toggle-group"
-              id="personalized-toggle-container"
-              style="display: none"
-            >
-              <div class="toggle-wrapper">
-                <!-- Toggle Switch -->
-                <label class="toggle-switch">
-                  <input
-                    type="checkbox"
-                    id="togglePersonalized"
-                    title="Toggle Personalized Recommendations"
-                  />
-                  <span class="slider round"></span>
-                </label>
-
-                <!-- Label with icon on the right side -->
-                <label for="togglePersonalized" class="toggle-label">
-                  <i class="bi bi-stars"></i>
-                  Personalized
-                </label>
-              </div>
-            </div>
             <!-- Filter and Shuffle buttons -->
             <div class="filter-button-group d-flex align-items-center gap-2">
               <button type="submit" class="btn btn-primary filter-btn">
@@ -263,31 +237,17 @@
         </div>
       </div>
 
-      <!-- Bookmark Actions: Export, Import & Merge (placed below the filter box) -->
+      <!-- Bookmark Actions: Export and Import Discogs (placed below the filter box) -->
       <div class="container MainContainer" id="bookmark-actions" style="display: none">
         <div class="d-flex justify-content-end gap-2 mb-2">
           <button id="export-btn" class="btn btn-primary">
-            <i class="bi bi-download"></i> Export User Data
-          </button>
-          <button id="import-btn" class="btn btn-secondary">
-            <i class="bi bi-upload"></i> Import User Data
-          </button>
-          <button id="merge-btn" class="btn btn-secondary">
-            <i class="bi bi-files"></i> Merge User Data
+            <i class="bi bi-download"></i> Export Discogs Data
           </button>
           <button id="import-discogs-btn" class="btn btn-secondary">
             <i class="bi bi-upload"></i> Import Discogs Collection
           </button>
-          <!-- New Import Collection Button -->
-          <button id="import-collection-btn" class="btn btn-secondary">
-            <i class="bi bi-folder-plus"></i> Import Collection
-          </button>
-          <!-- Hidden file inputs for importing, merging, and collection folder selection -->
-          <input type="file" id="import-file" accept=".json" style="display: none" />
-          <input type="file" id="merge-file" accept=".json" style="display: none" />
+          <!-- Hidden file inputs for importing and exporting -->
           <input type="file" id="import-discogs-file" accept=".csv" style="display: none" />
-          <!-- New folder input for Import Collection (webkitdirectory enables folder selection) -->
-          <input type="file" id="import-collection-folder" style="display: none" webkitdirectory directory multiple />
         </div>
       </div>
 

@@ -54,82 +54,6 @@
   padding-right: 8px;
 }
 
-/* -----------------------
-   Toggle switch for Personalized checkbox
-------------------------- */
-.toggle-group {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-}
-.toggle-group .filter-label {
-  margin-bottom: 4px; /* small spacing between label and toggle */
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-#personalized-toggle-container {
-  width: 100%;
-  display: flex;
-  align-items: center;
-}
-
-/* Push the toggle wrapper to the right */
-.toggle-wrapper {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: auto;
-}
-
-/* Toggle Switch */
-.toggle-switch {
-  position: relative;
-  display: inline-block;
-  width: 46px;
-  height: 24px;
-  vertical-align: middle;
-}
-.toggle-switch input[type="checkbox"] {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-.slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0; 
-  left: 0; 
-  right: 0; 
-  bottom: 0;
-  background-color: #aaa;
-  transition: 0.4s;
-  border-radius: 24px;
-}
-.slider:before {
-  position: absolute;
-  content: "";
-  height: 16px;
-  width: 16px;
-  left: 4px;
-  bottom: 4px;
-  background-color: #fff;
-  transition: 0.4s;
-  border-radius: 50%;
-}
-.toggle-switch input:checked + .slider {
-  background-color: #E7FF6E; /* matches Filter/Shuffle button color */
-}
-.toggle-switch input:checked + .slider:before {
-  transform: translateX(22px);
-}
-.toggle-switch input:focus + .slider {
-  box-shadow: 0 0 3px #E7FF6E;
-}
-.slider.round {
-  border-radius: 24px;
-}
 
 /* -----------------------
    LIGHT THEME (DEFAULT)
@@ -644,7 +568,7 @@ a:active,
   .FilterContainer {
     flex-direction: row;
     flex-wrap: nowrap;
-    align-items: center;
+    align-items: flex-end;
     overflow-x: auto;
     /* keep gap consistent for desktop usage */
     gap: 8px;
@@ -660,6 +584,7 @@ a:active,
     gap: 8px;
     margin-left: auto;
     flex-shrink: 0;
+    align-self: flex-end;
   }
 }
 
@@ -697,27 +622,6 @@ a:active,
   border-radius: 4px;
 }
 
-/* -----------------------
-   New Styles for Progress Modal
-------------------------- */
-#progressModal .modal-content {
-  background: var(--card-bg);
-  color: var(--text-color);
-  border: none;
-}
-#progressModal .modal-header {
-  border-bottom: 1px solid var(--border-color);
-}
-#progressModal .modal-body {
-  font-size: 14px;
-}
-#progressModal .progress {
-  height: 20px;
-  margin-top: 10px;
-}
-#progressModal .progress-bar {
-  background-color: var(--input-focus);
-}
 
 /* -----------------------
    New Styles for Bookmark Feature

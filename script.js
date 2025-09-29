@@ -14,16 +14,12 @@ let totalPages = 1;
 // Global active tab state: "search", "shuffle", or "bookmark"
 let activeTab = "search";
 
-// Global personalized toggle flag (false by default)
-let personalizedEnabled = false;
 
 // Default: Sort by title ascending
 let sortConfig = { key: "title", order: "asc" };
 
 let youtubeApiReady = false;
 
-// Global flag for cancellation
-let cancelImport = false;
 
 // ------------------ Bookmark Data ------------------
 function getBookmarkedReleases() {
@@ -312,94 +308,6 @@ async function fetchShuffleReleases({ retryCount = 0 } = {}) {
   }
 }
 
-// ------------------ Personalized Shuffle ------------------
-async function loadPersonalizedShuffleData() {
-  const { data: candidateData } = await fetchShuffleReleases();
-  
-  // Cache bookmarked releases for performance
-  const bookmarked = getBookmarkedReleases();
-  const bookmarkedIds = new Set(bookmarked.map(b => String(b.id)));
-  
-  // Build preference sets more efficiently
-  const preferredLabels = new Set();
-  const preferredArtists = new Set();
-  
-  for (const release of bookmarked) {
-    if (release.label) {
-      preferredLabels.add(release.label.toLowerCase().trim());
-    }
-    if (release.artist) {
-      preferredArtists.add(release.artist.toLowerCase().trim());
-    }
-  }
-  
-  // Filter and categorize candidates in a single pass
-  const matchingCandidates = [];
-  const otherCandidates = [];
-  const currentSearch = document.getElementById("searchInput").value.trim().toLowerCase();
-  
-  for (const release of candidateData) {
-    // Skip if already bookmarked
-    if (bookmarkedIds.has(String(release.id))) {
-      continue;
-    }
-    
-    let hasMatch = false;
-    let score = 0;
-    
-    // Check for label/artist matches
-    if (release.label && preferredLabels.has(release.label.toLowerCase().trim())) {
-      hasMatch = true;
-    }
-    if (release.artist && preferredArtists.has(release.artist.toLowerCase().trim())) {
-      hasMatch = true;
-    }
-    
-    // Calculate base score for non-matching candidates
-    if (!hasMatch) {
-      if (release.average_rating) {
-        score += parseFloat(release.average_rating);
-      }
-      if (release.rating_count) {
-        score += Math.log(release.rating_count + 1);
-      }
-      if (currentSearch && release.title.toLowerCase().includes(currentSearch)) {
-        score += 1;
-      }
-    }
-    
-    // Add to appropriate array
-    if (hasMatch) {
-      matchingCandidates.push(release);
-    } else {
-      release.basicScore = score;
-      otherCandidates.push(release);
-    }
-  }
-  
-  // Sort efficiently
-  matchingCandidates.sort((a, b) => (parseFloat(b.average_rating) || 0) - (parseFloat(a.average_rating) || 0));
-  otherCandidates.sort((a, b) => b.basicScore - a.basicScore);
-  
-  // Build final recommendation array
-  const recommended = [];
-  const maxResults = 10;
-  
-  // Add matching candidates first
-  recommended.push(...matchingCandidates.slice(0, maxResults));
-  
-  // Fill remaining slots with other candidates
-  if (recommended.length < maxResults) {
-    const needed = maxResults - recommended.length;
-    recommended.push(...otherCandidates.slice(0, needed));
-  }
-  
-  filteredData = recommended;
-  totalRecords = recommended.length;
-  currentPage = 1;
-  renderTable();
-  document.getElementById("pagination").style.display = "none";
-}
 
 async function loadShuffleData() {
   try {
@@ -412,16 +320,12 @@ async function loadShuffleData() {
       <p>Loading shuffle results...</p>
     </td></tr>`;
 
-    if (personalizedEnabled) {
-      await loadPersonalizedShuffleData();
-    } else {
-      const { data, count } = await fetchShuffleReleases();
-      filteredData = data;
-      totalRecords = count;
-      currentPage = 1;
-      renderTable();
-      document.getElementById("pagination").style.display = "none";
-    }
+    const { data, count } = await fetchShuffleReleases();
+    filteredData = data;
+    totalRecords = count;
+    currentPage = 1;
+    renderTable();
+    document.getElementById("pagination").style.display = "none";
   } catch (error) {
     console.error("Error in loadShuffleData:", error);
     const tbody = document.getElementById("releases-table-body");
@@ -516,39 +420,6 @@ function loadBookmarks(page = 1) {
   document.getElementById("pagination").style.display = "block";
 }
 
-// ------------------ Merge User Data ------------------
-async function mergeUserData(file) {
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    try {
-      const imported = JSON.parse(e.target.result);
-      if (imported && typeof imported === 'object') {
-        const currentBookmarks = getBookmarkedReleases();
-        const importedBookmarks = imported.bookmarkedReleases || [];
-        const mergedBookmarks = [...currentBookmarks];
-        importedBookmarks.forEach(item => {
-          if (!mergedBookmarks.some(b => String(b.id) === String(item.id))) {
-            mergedBookmarks.push(item);
-          }
-        });
-        localStorage.setItem("bookmarkedReleases", JSON.stringify(mergedBookmarks));
-        const currentInteracted = JSON.parse(localStorage.getItem("interactedReleases") || "[]");
-        const importedInteracted = imported.interactedReleases || [];
-        const mergedInteracted = Array.from(new Set([...currentInteracted, ...importedInteracted]));
-        localStorage.setItem("interactedReleases", JSON.stringify(mergedInteracted));
-        if (activeTab === "bookmark") {
-          loadBookmarks(currentPage);
-        }
-        alert("Merge Completed: Imported data has been merged with your current user data.");
-      } else {
-        alert("Invalid file format for merging.");
-      }
-    } catch (err) {
-      alert("Error reading merge file.");
-    }
-  };
-  reader.readAsText(file);
-}
 
 // ------------------ Initialize Filters ------------------
 let filtersCache = null;
@@ -1100,7 +971,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
   
-  // ------------------ New: Import Discogs Collection functionality ------------------
+  // ------------------ Import Discogs Collection functionality ------------------
   document.getElementById("import-discogs-btn").addEventListener("click", () => {
     document.getElementById("import-discogs-file").click();
   });
@@ -1111,30 +982,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // ------------------ New Feature: Import Collection ------------------
-  // The user selects a folder (using a file input with directory selection)
-  document.getElementById("import-collection-btn").addEventListener("click", () => {
-    document.getElementById("import-collection-folder").click();
-  });
-  document.getElementById("import-collection-folder").addEventListener("change", (e) => {
-    const files = e.target.files;
-    if (files.length > 0) {
-      importCollection(files);
-    }
-  });
-
   sortConfig = JSON.parse(localStorage.getItem("sortConfig") || '{"key":"title","order":"asc"}');
   const navBookmark = document.getElementById("tab-bookmark");
   if (navBookmark) {
     navBookmark.innerHTML = '<i class="bi bi-bookmark"></i>';
   }
-  const togglePersonalized = document.getElementById("togglePersonalized");
-  togglePersonalized.addEventListener("change", () => {
-    personalizedEnabled = togglePersonalized.checked;
-    if (activeTab === "shuffle") {
-      loadShuffleData();
-    }
-  });
   initializeFilters().then(() => {
     if (activeTab === "search") {
       loadData(1);
@@ -1266,24 +1118,6 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   document.getElementById("export-btn").addEventListener("click", exportUserData);
-  document.getElementById("import-btn").addEventListener("click", () => {
-    document.getElementById("import-file").click();
-  });
-  document.getElementById("import-file").addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      importUserData(file);
-    }
-  });
-  document.getElementById("merge-btn").addEventListener("click", () => {
-    document.getElementById("merge-file").click();
-  });
-  document.getElementById("merge-file").addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      mergeUserData(file);
-    }
-  });
 });
 
 /* -----------------------
@@ -1329,309 +1163,14 @@ async function importDiscogsCollection(file) {
   }
 }
 
-/* -----------------------
-   New Feature: Import Collection from Folder
-------------------------- */
-// This function uses jsmediatags to read metadata from audio files.
-// It then groups by album (release) and tries to match with a release in the database.
-// Any matching release is then added to the bookmarks.
-
-// NEW: Show Progress Modal
-/* -----------------------
-   Updated: Show Progress Modal with Cancel Button and Estimated Time
-------------------------- */
-function showProgressModal(message, progress) {
-  let modal = document.getElementById("progressModal");
-  if (!modal) {
-    modal = document.createElement("div");
-    modal.id = "progressModal";
-    modal.className = "modal fade";
-    modal.tabIndex = -1;
-    modal.innerHTML = `
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Processing Import</h5>
-            <button type="button" class="btn-close" id="progressModalCancelBtn" aria-label="Cancel"></button>
-          </div>
-          <div class="modal-body">
-            <p id="progressModalMessage">${message}</p>
-            <p id="estimatedTime"></p>
-            <div class="progress">
-              <div id="progressModalBar" class="progress-bar" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100"></div>
-            </div>
-          </div>
-        </div>
-      </div>`;
-    document.body.appendChild(modal);
-  } else {
-    document.getElementById("progressModalMessage").textContent = message;
-    const bar = document.getElementById("progressModalBar");
-    bar.style.width = `${progress}%`;
-    bar.setAttribute("aria-valuenow", progress);
-  }
-  // Attach cancel event listener
-  const cancelBtn = document.getElementById("progressModalCancelBtn");
-  if (cancelBtn) {
-    cancelBtn.onclick = () => {
-      cancelImport = true;
-    };
-  }
-  const bsModal = new bootstrap.Modal(modal, { backdrop: "static", keyboard: false });
-  bsModal.show();
-  modal.bsModal = bsModal;
-}
-
-
-/* -----------------------
-   Updated: Update Progress Modal with Estimated Time (formatted as hours, minutes, seconds)
-------------------------- */
-function updateProgressModal(message, progress, startTime) {
-  const modal = document.getElementById("progressModal");
-  if (modal) {
-    document.getElementById("progressModalMessage").textContent = message;
-    const bar = document.getElementById("progressModalBar");
-    bar.style.width = `${progress}%`;
-    bar.setAttribute("aria-valuenow", progress);
-    
-    // Calculate estimated time remaining based on elapsed time
-    const elapsed = (Date.now() - startTime) / 1000; // seconds
-    const estimatedTotal = progress > 0 ? (elapsed / progress) * 100 : 0;
-    const remaining = Math.max(estimatedTotal - elapsed, 0);
-
-    // Convert remaining seconds to hours, minutes, seconds
-    const hrs = Math.floor(remaining / 3600);
-    const mins = Math.floor((remaining % 3600) / 60);
-    const secs = Math.floor(remaining % 60);
-
-    // Format the estimated time string
-    let timeStr = "";
-    if (hrs > 0) {
-      timeStr += `${hrs} hour${hrs === 1 ? "" : "s"}, `;
-    }
-    if (mins > 0 || hrs > 0) {
-      timeStr += `${mins} minute${mins === 1 ? "" : "s"}, `;
-    }
-    timeStr += `${secs} second${secs === 1 ? "" : "s"}`;
-
-    document.getElementById("estimatedTime").textContent = `Estimated time remaining: ${timeStr}`;
-  }
-}
-
-// NEW: Hide Progress Modal
-function hideProgressModal() {
-  const modal = document.getElementById("progressModal");
-  if (modal && modal.bsModal) {
-    modal.bsModal.hide();
-  }
-}
 
 
 
-/* -----------------------
-   Helper: Parse File Name for Artist and Album
-------------------------- */
-function parseFileName(fileName) {
-  // Remove file extension (e.g., .mp3, .flac)
-  const nameWithoutExtension = fileName.replace(/\.[^/.]+$/, "");
-  // Expect pattern "Artist - Album" (or more parts)
-  const parts = nameWithoutExtension.split(" - ");
-  if (parts.length >= 2) {
-    return {
-      artist: parts[0].toLowerCase().trim(),
-      album: parts.slice(1).join(" - ").toLowerCase().trim()
-    };
-  }
-  return {};
-}
-
-/* -----------------------
-   Updated: Import Collection from Folder (Improved Matching with Cancellation, Estimated Time, and One Track per Release)
-------------------------- */
-// This function uses jsmediatags to read metadata from audio files.
-// Files are grouped by a composite key of artist and album. If metadata is missing,
-// it will attempt to extract the information from the file name (expecting "Artist - Album").
-// Only one matching query is sent per group (release), and the user can cancel the process.
-// A detailed log of the scanning and matching process is generated and downloaded.
-async function importCollection(files) {
-  if (typeof jsmediatags === "undefined") {
-    alert("jsmediatags library is required for metadata extraction.");
-    return;
-  }
-  
-  // Reset cancellation flag at start
-  cancelImport = false;
-  
-  // Initialize log array to capture the scanning and matching process
-  const logMessages = [];
-  logMessages.push(`Import started at: ${new Date().toISOString()}`);
-  
-  // Show the progress modal and record start time
-  const startTime = Date.now();
-  showProgressModal("Processing files...", 0);
-  
-  // Group audio files by composite key (artist|album)
-  const albumArtistMap = new Map();
-  let processedFiles = 0;
-  let totalAudioFiles = 0;
-  
-  // Count only audio files
-  for (const file of files) {
-    if (file.type.startsWith("audio/")) {
-      totalAudioFiles++;
-    }
-  }
-  logMessages.push(`Total audio files detected: ${totalAudioFiles}`);
-  
-  // Process each file
-  for (const file of files) {
-    if (cancelImport) {
-      logMessages.push("Import cancelled by user during file processing.");
-      break;
-    }
-    if (!file.type.startsWith("audio/")) continue;
-    await new Promise((resolve) => {
-      jsmediatags.read(file, {
-        onSuccess: function(tag) {
-          // Read metadata from tags
-          let albumRaw = tag.tags.album;
-          let artistRaw = tag.tags.artist;
-          let album = albumRaw ? albumRaw.toLowerCase().trim() : null;
-          let artist = artistRaw ? artistRaw.toLowerCase().trim() : null;
-          
-          // If either field is missing, try to parse from the file name
-          if (!artist || !album) {
-            const parsed = parseFileName(file.name);
-            if (!artist && parsed.artist) {
-              artist = parsed.artist;
-              logMessages.push(`Artist parsed from filename for "${file.name}": ${artist}`);
-            }
-            if (!album && parsed.album) {
-              album = parsed.album;
-              logMessages.push(`Album parsed from filename for "${file.name}": ${album}`);
-            }
-          }
-          
-          logMessages.push(`File "${file.name}" processed. Artist: ${artist || "N/A"}, Album: ${album || "N/A"}`);
-          
-          if (artist && album) {
-            // Create a composite key for grouping
-            const key = `${artist}|${album}`;
-            if (!albumArtistMap.has(key)) {
-              albumArtistMap.set(key, { artist, album, files: [] });
-              logMessages.push(`New group created for key: "${key}"`);
-            }
-            albumArtistMap.get(key).files.push(file);
-          } else {
-            logMessages.push(`File "${file.name}" skipped due to insufficient metadata (even after filename parsing).`);
-          }
-          
-          processedFiles++;
-          updateProgressModal(`Processing files... (${processedFiles}/${totalAudioFiles})`, Math.round((processedFiles / totalAudioFiles) * 100), startTime);
-          resolve();
-        },
-        onError: function(error) {
-          logMessages.push(`Error reading file "${file.name}": ${error.type}`);
-          processedFiles++;
-          updateProgressModal(`Processing files... (${processedFiles}/${totalAudioFiles})`, Math.round((processedFiles / totalAudioFiles) * 100), startTime);
-          resolve();
-        }
-      });
-    });
-  }
-  
-  if (cancelImport) {
-    hideProgressModal();
-    logMessages.push("Import cancelled by user. Matched releases up to this point have been retained.");
-    downloadLog(logMessages);
-    alert("Import cancelled. Releases matched so far have been added.");
-    return;
-  }
-  
-  // Process each album-artist group (one matching query per group)
-  let importedCount = 0;
-  const groupEntries = Array.from(albumArtistMap.entries());
-  logMessages.push(`Total album-artist groups to process: ${groupEntries.length}`);
-  
-  for (let i = 0; i < groupEntries.length; i++) {
-    if (cancelImport) {
-      logMessages.push("Import cancelled by user during matching process.");
-      break;
-    }
-    const [key, group] = groupEntries[i];
-    const { artist, album } = group;
-    logMessages.push(`Matching group "${key}" (${i + 1}/${groupEntries.length}), containing ${group.files.length} file(s).`);
-    updateProgressModal(`Matching group "${key}" (${i + 1}/${groupEntries.length})`, Math.round(((i + 1) / groupEntries.length) * 100), startTime);
-    
-    // Query for a release that matches the expected format: "Artist - release title"
-    // and that contains the album name within the release title.
-    const { data, error } = await supabaseClient
-      .from("releases")
-      .select("*")
-      .ilike("title", `%${artist}% - %${album}%`)
-      .limit(1);
-      
-    if (error) {
-      logMessages.push(`Error querying group "${key}": ${error.message}`);
-      continue;
-    }
-    
-    if (data && data.length > 0) {
-      const release = data[0];
-      // Extract expected artist and album parts from the release title
-      const titleParts = release.title.split(" - ");
-      const releaseArtist = titleParts.length > 0 ? titleParts[0].toLowerCase().trim() : "";
-      const releaseAlbum = titleParts.length > 1 ? titleParts.slice(1).join(" - ").toLowerCase().trim() : "";
-      
-      // Check if both artist and album match (exact match required)
-      if (releaseArtist === artist && releaseAlbum === album) {
-        logMessages.push(`Exact match found for group "${key}": Release ID ${release.id} ("${release.title}")`);
-      } else {
-        logMessages.push(`Partial match for group "${key}" found: Release ID ${release.id} ("${release.title}"). ` +
-                         `Extracted artist: "${releaseArtist}", album: "${releaseAlbum}" vs. expected artist: "${artist}", album: "${album}"`);
-      }
-      
-      if (!isBookmarked(release.id)) {
-        release.bookmarkedAt = new Date().toISOString();
-        const bookmarks = getBookmarkedReleases();
-        bookmarks.push(release);
-        saveBookmarkedReleases(bookmarks);
-        importedCount++;
-        logMessages.push(`Release ID ${release.id} added to bookmarks.`);
-      } else {
-        logMessages.push(`Release ID ${release.id} already bookmarked.`);
-      }
-    } else {
-      logMessages.push(`No matching release found for group "${key}" (Artist: "${artist}", Album: "${album}").`);
-    }
-  }
-  
-  hideProgressModal();
-  logMessages.push(`Import completed at: ${new Date().toISOString()}`);
-  logMessages.push(`Total releases imported: ${importedCount}`);
-  
-  // Trigger download of the log file
-  downloadLog(logMessages);
-  
-  alert(`Import Collection Completed. Imported ${importedCount} album release(s) into bookmarks.`);
-}
 
 
-/* -----------------------
-   Utility: Download Log File
-------------------------- */
-function downloadLog(logMessages) {
-  const logContent = logMessages.join("\n");
-  const blob = new Blob([logContent], { type: "text/plain" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `import_log_${new Date().toISOString().replace(/[:.]/g, "-")}.txt`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
+
+
+
 
 /* -----------------------
    Tab Toggle and Filter Button Update
@@ -1649,17 +1188,14 @@ function updateFilterButtons() {
   if (activeTab === "search") {
     document.querySelector(".filter-btn").style.display = "inline-block";
     document.querySelector(".shuffle-btn").style.display = "none";
-    document.getElementById("personalized-toggle-container").style.display = "none";
     document.getElementById("pagination").style.display = "block";
   } else if (activeTab === "shuffle") {
     document.querySelector(".filter-btn").style.display = "none";
     document.querySelector(".shuffle-btn").style.display = "inline-block";
-    document.getElementById("personalized-toggle-container").style.display = "flex";
     document.getElementById("pagination").style.display = "none";
   } else if (activeTab === "bookmark") {
     document.querySelector(".filter-btn").style.display = "inline-block";
     document.querySelector(".shuffle-btn").style.display = "none";
-    document.getElementById("personalized-toggle-container").style.display = "none";
     document.getElementById("pagination").style.display = "block";
   }
 }
@@ -1691,47 +1227,16 @@ function initializeYouTubePlayers() {
   });
 }
 
-// ------------------ Export / Import User Data ------------------
+// ------------------ Export Discogs Data ------------------
 function exportUserData() {
-  const userData = {
-    bookmarkedReleases: JSON.parse(localStorage.getItem("bookmarkedReleases") || "[]"),
-    interactedReleases: JSON.parse(localStorage.getItem("interactedReleases") || "[]"),
-    tableColumnWidths: JSON.parse(localStorage.getItem("tableColumnWidths") || "{}"),
-    darkModeEnabled: localStorage.getItem("darkModeEnabled") || "true",
-    sortConfig: JSON.parse(localStorage.getItem("sortConfig") || '{"key":"title","order":"asc"}')
-  };
-  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(userData, null, 2));
+  const bookmarkedReleases = JSON.parse(localStorage.getItem("bookmarkedReleases") || "[]");
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(bookmarkedReleases, null, 2));
   const dlAnchorElem = document.createElement("a");
   dlAnchorElem.setAttribute("href", dataStr);
-  dlAnchorElem.setAttribute("download", "userData.json");
+  dlAnchorElem.setAttribute("download", "discogs_bookmarks.json");
   dlAnchorElem.click();
 }
 
-function importUserData(file) {
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    try {
-      const imported = JSON.parse(e.target.result);
-      if (imported && typeof imported === 'object') {
-        if(imported.bookmarkedReleases) localStorage.setItem("bookmarkedReleases", JSON.stringify(imported.bookmarkedReleases));
-        if(imported.interactedReleases) localStorage.setItem("interactedReleases", JSON.stringify(imported.interactedReleases));
-        if(imported.tableColumnWidths) localStorage.setItem("tableColumnWidths", JSON.stringify(imported.tableColumnWidths));
-        if(imported.darkModeEnabled) localStorage.setItem("darkModeEnabled", imported.darkModeEnabled);
-        if(imported.sortConfig) localStorage.setItem("sortConfig", JSON.stringify(imported.sortConfig));
-        if (activeTab === "bookmark") {
-          loadBookmarks(currentPage);
-        }
-        applySavedColumnWidths();
-        updateSortIndicators();
-      } else {
-        alert("Invalid file format.");
-      }
-    } catch (err) {
-      alert("Error reading file.");
-    }
-  };
-  reader.readAsText(file);
-}
 
 /* -----------------------
    Event Tracking
