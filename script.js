@@ -110,6 +110,7 @@ async function fetchReleases({ page = 1, retryCount = 0 } = {}) {
     const ratingRange = parseRangeInput(document.getElementById("rating_range").value.trim());
     const ratingCountRange = parseRangeInput(document.getElementById("rating_count_range").value.trim());
     const priceRange = parseRangeInput(document.getElementById("price_range").value.trim());
+    const wantRange = parseRangeInput(document.getElementById("want_range").value.trim());
     let query = supabaseClient.from("releases").select("*", { count: "exact" });
     const searchQuery = document.getElementById("searchInput").value.trim();
     
@@ -139,6 +140,8 @@ async function fetchReleases({ page = 1, retryCount = 0 } = {}) {
     if (ratingCountRange.max !== Infinity) query = query.lte("rating_count", ratingCountRange.max);
     if (priceRange.min !== -Infinity) query = query.gte("lowest_price", priceRange.min);
     if (priceRange.max !== Infinity) query = query.lte("lowest_price", priceRange.max);
+    if (wantRange.min !== -Infinity) query = query.gte("want", wantRange.min);
+    if (wantRange.max !== Infinity) query = query.lte("want", wantRange.max);
     if (sortConfig.key) {
       query = query.order(sortConfig.key, { ascending: sortConfig.order === "asc" });
     }
@@ -224,6 +227,7 @@ async function fetchShuffleReleases({ retryCount = 0 } = {}) {
     const ratingRange = parseRangeInput(document.getElementById("rating_range").value.trim());
     const ratingCountRange = parseRangeInput(document.getElementById("rating_count_range").value.trim());
     const priceRange = parseRangeInput(document.getElementById("price_range").value.trim());
+    const wantRange = parseRangeInput(document.getElementById("want_range").value.trim());
     
     let query = supabaseClient.from("releases").select("*", { count: "exact" });
     const searchQuery = document.getElementById("searchInput").value.trim();
@@ -244,6 +248,8 @@ async function fetchShuffleReleases({ retryCount = 0 } = {}) {
     if (ratingCountRange.max !== Infinity) query = query.lte("rating_count", ratingCountRange.max);
     if (priceRange.min !== -Infinity) query = query.gte("lowest_price", priceRange.min);
     if (priceRange.max !== Infinity) query = query.lte("lowest_price", priceRange.max);
+    if (wantRange.min !== -Infinity) query = query.gte("want", wantRange.min);
+    if (wantRange.max !== Infinity) query = query.lte("want", wantRange.max);
 
     // Get the filtered count and data
     const { data: allData, count, error } = await query;
@@ -347,6 +353,7 @@ function loadBookmarks(page = 1) {
    const ratingRange = parseRangeInput(document.getElementById("rating_range").value.trim());
    const ratingCountRange = parseRangeInput(document.getElementById("rating_count_range").value.trim());
    const priceRange = parseRangeInput(document.getElementById("price_range").value.trim());
+   const wantRange = parseRangeInput(document.getElementById("want_range").value.trim());
  
    bookmarks = bookmarks.filter(release => {
      let pass = true;
@@ -384,6 +391,10 @@ function loadBookmarks(page = 1) {
      if (release.lowest_price !== undefined) {
        const price = parseFloat(release.lowest_price);
        if (price < priceRange.min || price > priceRange.max) pass = false;
+     }
+     if (release.want !== undefined) {
+       const want = parseFloat(release.want);
+       if (want < wantRange.min || want > wantRange.max) pass = false;
      }
      return pass;
    });
@@ -1035,6 +1046,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("rating_range").addEventListener("input", handleFilterChange);
   document.getElementById("rating_count_range").addEventListener("input", handleFilterChange);
   document.getElementById("price_range").addEventListener("input", handleFilterChange);
+  document.getElementById("want_range").addEventListener("input", handleFilterChange);
   const darkModeToggle = document.getElementById("darkModeToggle");
   if (localStorage.getItem("darkModeEnabled") === "true" || !localStorage.getItem("darkModeEnabled")) {
     document.body.classList.add("dark-mode");
