@@ -2270,6 +2270,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
   document.getElementById("tab-search").addEventListener("click", (e) => {
+    // Don't interfere if clicking on the input itself
+    if (e.target.id === "searchInput") {
+      return;
+    }
     e.preventDefault();
     activeTab = "search";
     document.getElementById("tab-search").classList.add("active");
@@ -2326,6 +2330,8 @@ document.addEventListener("DOMContentLoaded", () => {
     searchTimeout = setTimeout(() => {
       if (activeTab === "search") {
         loadData(1);
+      } else if (activeTab === "watchlist") {
+        loadWatchlist(1);
       }
     }, 800); // Wait 800ms after user stops typing (increased from 500ms)
   });
