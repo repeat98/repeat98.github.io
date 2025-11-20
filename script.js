@@ -1748,14 +1748,17 @@ class MultiSelectDropdown {
         this.trigger.style.display = 'flex';
         this.trigger.style.visibility = 'visible';
         
-        // Event listeners
-        this.trigger.addEventListener('click', (e) => {
+        // Event listeners with touch support
+        const handleTriggerActivation = (e) => {
             e.stopPropagation();
             e.preventDefault();
             // Close all other dropdowns before toggling this one
             closeAllDropdowns(this);
             this.toggle();
-        });
+        };
+        
+        this.trigger.addEventListener('click', handleTriggerActivation);
+        this.trigger.addEventListener('touchend', handleTriggerActivation, { passive: false });
         
         this.trigger.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -1766,6 +1769,8 @@ class MultiSelectDropdown {
         
         // Store handlers for cleanup if needed
         this.clickHandler = null;
+        this.touchHandler = null;
+        this.scrollHandler = null;
     }
     
     toggle() {
@@ -1783,29 +1788,64 @@ class MultiSelectDropdown {
         // Calculate position relative to trigger
         const triggerRect = this.trigger.getBoundingClientRect();
         const dropdown = this.dropdown;
+        const viewportHeight = window.innerHeight;
+        const viewportWidth = window.innerWidth;
         
         dropdown.style.position = 'fixed';
-        dropdown.style.top = (triggerRect.bottom + 4) + 'px';
         dropdown.style.left = triggerRect.left + 'px';
         dropdown.style.width = triggerRect.width + 'px';
         dropdown.style.maxWidth = triggerRect.width + 'px';
         
+        // Check if dropdown would go off-screen below, if so, show it above
+        const dropdownHeight = 300; // approximate max height
+        const spaceBelow = viewportHeight - triggerRect.bottom;
+        const spaceAbove = triggerRect.top;
+        
+        if (spaceBelow < dropdownHeight && spaceAbove > spaceBelow) {
+            // Show above
+            dropdown.style.bottom = (viewportHeight - triggerRect.top + 4) + 'px';
+            dropdown.style.top = 'auto';
+        } else {
+            // Show below (default)
+            dropdown.style.top = (triggerRect.bottom + 4) + 'px';
+            dropdown.style.bottom = 'auto';
+        }
+        
+        // Ensure dropdown doesn't exceed viewport
+        dropdown.style.maxHeight = Math.min(dropdownHeight, viewportHeight - 100) + 'px';
+        
         this.dropdown.classList.add('open');
         this.trigger.classList.add('open');
+        this.container.classList.add('open');
         
         // Force display
         this.dropdown.style.display = 'block';
         this.dropdown.style.visibility = 'visible';
         this.dropdown.style.zIndex = '99999';
         
-        // Add click outside handler
+        // Add click and touch outside handlers
         setTimeout(() => {
             this.clickHandler = (e) => {
                 if (!this.container.contains(e.target) && !this.dropdown.contains(e.target)) {
                     this.close();
                 }
             };
+            
+            this.touchHandler = (e) => {
+                if (!this.container.contains(e.target) && !this.dropdown.contains(e.target)) {
+                    e.preventDefault();
+                    this.close();
+                }
+            };
+            
             document.addEventListener('click', this.clickHandler);
+            document.addEventListener('touchstart', this.touchHandler, { passive: false });
+            
+            // Close on scroll (mobile-friendly)
+            this.scrollHandler = () => {
+                this.close();
+            };
+            window.addEventListener('scroll', this.scrollHandler, { passive: true });
         }, 0);
     }
     
@@ -1816,19 +1856,32 @@ class MultiSelectDropdown {
         
         this.dropdown.classList.remove('open');
         this.trigger.classList.remove('open');
+        this.container.classList.remove('open');
         this.dropdown.style.display = 'none';
         
-        // Remove event listeners
+        // Remove all event listeners
         if (this.clickHandler) {
             document.removeEventListener('click', this.clickHandler);
             this.clickHandler = null;
         }
         
+        if (this.touchHandler) {
+            document.removeEventListener('touchstart', this.touchHandler);
+            this.touchHandler = null;
+        }
+        
+        if (this.scrollHandler) {
+            window.removeEventListener('scroll', this.scrollHandler);
+            this.scrollHandler = null;
+        }
+        
         // Reset positioning
         this.dropdown.style.position = '';
         this.dropdown.style.top = '';
+        this.dropdown.style.bottom = '';
         this.dropdown.style.left = '';
         this.dropdown.style.width = '';
+        this.dropdown.style.maxHeight = '';
     }
     
     updateTriggerText() {
@@ -1901,17 +1954,27 @@ class MultiSelectDropdown {
         
         const selectAllBtn = document.createElement('button');
         selectAllBtn.textContent = 'Select All';
-        selectAllBtn.addEventListener('click', (e) => {
+        selectAllBtn.type = 'button';
+        
+        const handleSelectAll = (e) => {
             e.stopPropagation();
+            e.preventDefault();
             this.selectAll();
-        });
+        };
+        selectAllBtn.addEventListener('click', handleSelectAll);
+        selectAllBtn.addEventListener('touchend', handleSelectAll, { passive: false });
         
         const clearAllBtn = document.createElement('button');
         clearAllBtn.textContent = 'Clear All';
-        clearAllBtn.addEventListener('click', (e) => {
+        clearAllBtn.type = 'button';
+        
+        const handleClearAll = (e) => {
             e.stopPropagation();
+            e.preventDefault();
             this.clearAll();
-        });
+        };
+        clearAllBtn.addEventListener('click', handleClearAll);
+        clearAllBtn.addEventListener('touchend', handleClearAll, { passive: false });
         
         actions.appendChild(selectAllBtn);
         actions.appendChild(clearAllBtn);
@@ -1935,7 +1998,7 @@ class MultiSelectDropdown {
             label.htmlFor = checkbox.id;
             label.textContent = value;
             
-            checkbox.addEventListener('change', (e) => {
+            const toggleCheckbox = (e) => {
                 e.stopPropagation();
                 if (checkbox.checked) {
                     this.selectedValues.add(value);
@@ -1943,14 +2006,36 @@ class MultiSelectDropdown {
                     this.selectedValues.delete(value);
                 }
                 this.updateSelection();
-            });
+            };
             
-            option.addEventListener('click', (e) => {
-                if (e.target !== checkbox) {
+            checkbox.addEventListener('change', toggleCheckbox);
+            
+            // Handle clicks on the option div (but not on checkbox itself)
+            const handleOptionInteraction = (e) => {
+                // Only toggle if clicking on the option div or label, not the checkbox
+                if (e.target === option || e.target === label) {
+                    e.preventDefault();
+                    e.stopPropagation();
                     checkbox.checked = !checkbox.checked;
-                    checkbox.dispatchEvent(new Event('change'));
+                    
+                    // Manually update selection since we're toggling programmatically
+                    if (checkbox.checked) {
+                        this.selectedValues.add(value);
+                    } else {
+                        this.selectedValues.delete(value);
+                    }
+                    this.updateSelection();
                 }
-            });
+            };
+            
+            option.addEventListener('click', handleOptionInteraction);
+            option.addEventListener('touchend', (e) => {
+                // Prevent default to avoid double-firing with click
+                if (e.target === option || e.target === label) {
+                    e.preventDefault();
+                    handleOptionInteraction(e);
+                }
+            }, { passive: false });
             
             option.appendChild(checkbox);
             option.appendChild(label);
