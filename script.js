@@ -2983,18 +2983,8 @@ function goToHomepage(event) {
   document.getElementById("tab-shuffle").classList.remove("active");
   document.getElementById("tab-watchlist").classList.remove("active");
   
-  // Clear search and filters
+  // Clear only the search input (keep filters intact)
   document.getElementById("searchInput").value = "";
-  document.getElementById("genre").value = "";
-  document.getElementById("style").value = "";
-  document.getElementById("year_range").value = "";
-  document.getElementById("rating_range").value = "";
-  document.getElementById("rating_count_range").value = "";
-  document.getElementById("want_range").value = "";
-  
-  // Reset sort to default
-  sortConfig = { key: "title", order: "asc" };
-  localStorage.setItem("sortConfig", JSON.stringify(sortConfig));
   
   updateFilterButtons();
   updateSortIndicators();
