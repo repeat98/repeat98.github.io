@@ -1,7 +1,7 @@
 .right-toggle-group {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
 }
 
 /* Ensure tab toggle expands and dark-mode toggle stays fixed */
@@ -434,6 +434,38 @@ a:active,
 }
 
 /* -----------------------
+   Brand Link Styling
+------------------------- */
+.brand-link {
+  color: #E7FF6E !important;
+  text-decoration: none !important;
+  font-weight: 500;
+}
+
+.brand-link:hover {
+  color: #E7FF6E !important;
+  text-decoration: underline !important;
+  opacity: 0.9;
+}
+
+/* -----------------------
+   Brand Button Styling
+------------------------- */
+.btn-brand {
+  background-color: #E7FF6E !important;
+  border-color: #E7FF6E !important;
+  color: #000 !important;
+  font-weight: 500;
+}
+
+.btn-brand:hover {
+  background-color: #E7FF6E !important;
+  border-color: #E7FF6E !important;
+  color: #000 !important;
+  opacity: 0.9;
+}
+
+/* -----------------------
    Mobile responsiveness
 ------------------------- */
 @media (max-width: 768px) {
@@ -620,6 +652,119 @@ a:active,
   cursor: pointer;
   font-size: 14px;
   border-radius: 4px;
+}
+
+/* -----------------------
+   Modal Styling (discogsTrackr-inspired)
+------------------------- */
+.modal-content {
+  background-color: var(--card-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.modal-header {
+  border-bottom: 1px solid var(--border-color);
+  padding: 16px 20px;
+}
+
+.modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.modal-body h6 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-color);
+  margin-bottom: 8px;
+}
+
+.modal-body .text-muted {
+  color: var(--text-color) !important;
+  opacity: 0.7 !important;
+}
+
+.modal-body .form-control {
+  background-color: var(--input-bg);
+  color: var(--text-color);
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.modal-body .form-control:focus {
+  background-color: var(--input-bg);
+  color: var(--text-color);
+  border-color: var(--input-focus);
+  box-shadow: 0 0 5px var(--input-focus);
+}
+
+.modal-body .form-control::placeholder {
+  color: var(--text-color);
+  opacity: 0.5;
+}
+
+body.dark-mode .modal-body .form-control {
+  color: #ffffff !important;
+}
+
+body.dark-mode .modal-body .form-control::placeholder {
+  color: #cfcfcf !important;
+  opacity: 0.8 !important;
+}
+
+.modal-body .alert-success {
+  background-color: rgba(231, 255, 110, 0.15);
+  border: 1px solid #E7FF6E;
+  color: var(--text-color);
+  border-radius: 4px;
+  padding: 12px;
+}
+
+.modal-body hr {
+  border-color: var(--border-color);
+  opacity: 0.3;
+  margin: 20px 0;
+}
+
+.modal-footer {
+  border-top: 1px solid var(--border-color);
+  padding: 12px 20px;
+}
+
+.modal-footer .btn-secondary {
+  background-color: var(--input-bg);
+  border-color: var(--border-color);
+  color: var(--text-color);
+}
+
+.modal-footer .btn-secondary:hover {
+  background-color: var(--table-header-bg);
+  border-color: var(--border-color);
+  color: var(--text-color);
+  opacity: 0.9;
+}
+
+.btn-close {
+  filter: invert(1);
+  opacity: 0.5;
+}
+
+body.dark-mode .btn-close {
+  filter: invert(0);
+  opacity: 0.5;
+}
+
+.btn-close:hover {
+  opacity: 1;
 }
 
 

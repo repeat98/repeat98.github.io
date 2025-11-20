@@ -30,8 +30,21 @@ let currentPage = 1;
 const pageSize = 10;
 let totalPages = 1;
 
-// Global active tab state: "search", "shuffle", or "bookmark"
+// Global active tab state: "search", "shuffle", or "watchlist"
 let activeTab = "search";
+
+// Discogs OAuth state
+let userAccessToken = null;
+let oauthUser = null;
+let userWantlistIds = new Set();
+let cachedDiscogsWantlist = null; // Cache for full enriched Discogs wantlist
+
+// Rate limiting for Discogs API
+let lastRequestTime = 0;
+const MIN_REQUEST_INTERVAL = 1100; // Slightly over 1 second
+let requestCount = 0;
+let requestWindowStart = Date.now();
+const MAX_REQUESTS_PER_MINUTE = 55;
 
 
 // Default: Sort by title ascending
@@ -45,52 +58,80 @@ let lastQuerySignature = null;
 let requestInProgress = false;
 
 
-// ------------------ Bookmark Data ------------------
-function getBookmarkedReleases() {
-  return JSON.parse(localStorage.getItem("bookmarkedReleases") || "[]");
+// ------------------ Watchlist Data ------------------
+function getWatchlistedReleases() {
+  try {
+    const data = localStorage.getItem("watchlistedReleases");
+    if (!data) return [];
+    const parsed = JSON.parse(data);
+    // Validate that it's an array
+    if (!Array.isArray(parsed)) {
+      console.warn("Watchlist data is not an array, resetting...");
+      localStorage.removeItem("watchlistedReleases");
+      return [];
+    }
+    return parsed;
+  } catch (error) {
+    console.error("Error parsing watchlist data:", error);
+    localStorage.removeItem("watchlistedReleases");
+    return [];
+  }
 }
 
-function saveBookmarkedReleases(bookmarks) {
-  localStorage.setItem("bookmarkedReleases", JSON.stringify(bookmarks));
+function saveWatchlistedReleases(watchlist) {
+  localStorage.setItem("watchlistedReleases", JSON.stringify(watchlist));
 }
 
-function isBookmarked(id) {
-  const bookmarks = getBookmarkedReleases();
-  return bookmarks.some(release => release.id === id);
+function isWatchlisted(id) {
+  // Check both local watchlist and Discogs wantlist if logged in
+  const watchlist = getWatchlistedReleases();
+  const locallyWatchlisted = watchlist.some(release => release.id === id);
+  const inDiscogsWantlist = userWantlistIds.has(id);
+  
+  return locallyWatchlisted || inDiscogsWantlist;
 }
 
-function toggleBookmark(release) {
-  let bookmarks = getBookmarkedReleases();
+async function toggleWatchlist(release) {
+  // If logged in with Discogs, sync with Discogs wantlist
+  if (oauthUser && userAccessToken) {
+    await toggleDiscogsWantlist(release.id);
+    return;
+  }
+  
+  // Otherwise, just toggle local watchlist
+  let watchlist = getWatchlistedReleases();
   let action;
-  if (isBookmarked(release.id)) {
-    bookmarks = bookmarks.filter(r => r.id !== release.id);
+  const locallyWatchlisted = watchlist.some(r => r.id === release.id);
+  
+  if (locallyWatchlisted) {
+    watchlist = watchlist.filter(r => r.id !== release.id);
     action = "removed";
   } else {
-    release.bookmarkedAt = new Date().toISOString();
-    bookmarks.push(release);
+    release.watchlistedAt = new Date().toISOString();
+    watchlist.push(release);
     action = "added";
   }
-  saveBookmarkedReleases(bookmarks);
-  gtag("event", "bookmark_toggle", {
+  saveWatchlistedReleases(watchlist);
+  gtag("event", "watchlist_toggle", {
     action: action,
     release_id: release.id,
     title: release.title,
   });
   const row = document.querySelector(`tr[data-id="${release.id}"]`);
   if (row) {
-    const bookmarkIcon = row.querySelector(".bookmark-star");
-    if (bookmarkIcon) {
-      if (isBookmarked(release.id)) {
-        bookmarkIcon.classList.remove("bi-bookmark");
-        bookmarkIcon.classList.add("bi-bookmark-fill", "bookmarked");
+    const watchlistIcon = row.querySelector(".watchlist-icon");
+    if (watchlistIcon) {
+      if (isWatchlisted(release.id)) {
+        watchlistIcon.classList.remove("bi-eye");
+        watchlistIcon.classList.add("bi-eye-fill", "watchlisted");
       } else {
-        bookmarkIcon.classList.remove("bi-bookmark-fill", "bookmarked");
-        bookmarkIcon.classList.add("bi-bookmark");
+        watchlistIcon.classList.remove("bi-eye-fill", "watchlisted");
+        watchlistIcon.classList.add("bi-eye");
       }
     }
   }
-  if (activeTab === "bookmark") {
-    loadBookmarks(currentPage);
+  if (activeTab === "watchlist") {
+    loadWatchlist(currentPage).catch(err => console.error("Watchlist reload error:", err));
   }
 }
 
@@ -99,7 +140,7 @@ function toggleBookmark(release) {
 function checkNetworkConnection() {
   if (!navigator.onLine) {
     const tbody = document.getElementById("releases-table-body");
-    tbody.innerHTML = `<tr><td class="no-results" colspan="12">
+    tbody.innerHTML = `<tr><td class="no-results" colspan="11">
       <i class="bi bi-wifi-off"></i>
       <p>No internet connection. Please check your network and try again.</p>
     </td></tr>`;
@@ -141,24 +182,22 @@ function getQuerySignature(page) {
   const selectedGenre = document.getElementById("genre").value;
   const selectedStyle = document.getElementById("style").value;
   const searchQuery = document.getElementById("searchInput").value.trim();
-  const yearRange = document.getElementById("year_range").value.trim();
-  const ratingRange = document.getElementById("rating_range").value.trim();
-  const ratingCountRange = document.getElementById("rating_count_range").value.trim();
-  const priceRange = document.getElementById("price_range").value.trim();
-  const wantRange = document.getElementById("want_range").value.trim();
-  
-  return JSON.stringify({
-    page,
-    genre: selectedGenre,
-    style: selectedStyle,
-    search: searchQuery,
-    year: yearRange,
-    rating: ratingRange,
-    ratingCount: ratingCountRange,
-    price: priceRange,
-    want: wantRange,
-    sort: sortConfig
-  });
+    const yearRange = document.getElementById("year_range").value.trim();
+    const ratingRange = document.getElementById("rating_range").value.trim();
+    const ratingCountRange = document.getElementById("rating_count_range").value.trim();
+    const wantRange = document.getElementById("want_range").value.trim();
+    
+    return JSON.stringify({
+      page,
+      genre: selectedGenre,
+      style: selectedStyle,
+      search: searchQuery,
+      year: yearRange,
+      rating: ratingRange,
+      ratingCount: ratingCountRange,
+      want: wantRange,
+      sort: sortConfig
+    });
 }
 
 async function fetchReleases({ page = 1, retryCount = 0 } = {}) {
@@ -187,7 +226,6 @@ async function fetchReleases({ page = 1, retryCount = 0 } = {}) {
     const { min: yearMin, max: yearMax } = parseYearRange();
     const ratingRange = parseRangeInput(document.getElementById("rating_range").value.trim());
     const ratingCountRange = parseRangeInput(document.getElementById("rating_count_range").value.trim());
-    const priceRange = parseRangeInput(document.getElementById("price_range").value.trim());
     const wantRange = parseRangeInput(document.getElementById("want_range").value.trim());
     let query = supabaseClient.from("releases").select("*", { count: "exact" });
     const searchQuery = document.getElementById("searchInput").value.trim();
@@ -195,7 +233,7 @@ async function fetchReleases({ page = 1, retryCount = 0 } = {}) {
     // Show loading state only on first attempt
     if (retryCount === 0) {
       const tbody = document.getElementById("releases-table-body");
-      tbody.innerHTML = `<tr><td class="no-results" colspan="12">
+      tbody.innerHTML = `<tr><td class="no-results" colspan="11">
         <div class="spinner-border text-primary" role="status">
           <span class="visually-hidden">Loading...</span>
         </div>
@@ -218,8 +256,6 @@ async function fetchReleases({ page = 1, retryCount = 0 } = {}) {
     if (ratingRange.max !== Infinity) query = query.lte("average_rating", ratingRange.max);
     if (ratingCountRange.min !== -Infinity) query = query.gte("rating_count", ratingCountRange.min);
     if (ratingCountRange.max !== Infinity) query = query.lte("rating_count", ratingCountRange.max);
-    if (priceRange.min !== -Infinity) query = query.gte("lowest_price", priceRange.min);
-    if (priceRange.max !== Infinity) query = query.lte("lowest_price", priceRange.max);
     if (wantRange.min !== -Infinity) query = query.gte("want", wantRange.min);
     if (wantRange.max !== Infinity) query = query.lte("want", wantRange.max);
     if (sortConfig.key) {
@@ -261,7 +297,7 @@ async function fetchReleases({ page = 1, retryCount = 0 } = {}) {
       
       // If we've exceeded retries or it's not a retryable error, show error message
       const tbody = document.getElementById("releases-table-body");
-      tbody.innerHTML = `<tr><td class="no-results" colspan="12">
+      tbody.innerHTML = `<tr><td class="no-results" colspan="11">
         <i class="bi bi-exclamation-triangle-fill"></i>
         <p>Failed to load results. Please try again in a moment.</p>
       </td></tr>`;
@@ -294,7 +330,7 @@ async function fetchReleases({ page = 1, retryCount = 0 } = {}) {
     
     // If we've exceeded retries, show error message
     const tbody = document.getElementById("releases-table-body");
-    tbody.innerHTML = `<tr><td class="no-results" colspan="12">
+    tbody.innerHTML = `<tr><td class="no-results" colspan="11">
       <i class="bi bi-exclamation-triangle-fill"></i>
       <p>Failed to load results. Please try again in a moment.</p>
     </td></tr>`;
@@ -332,7 +368,7 @@ async function loadData(page = 1) {
     
     console.error("Error in loadData:", error);
     const tbody = document.getElementById("releases-table-body");
-    tbody.innerHTML = `<tr><td class="no-results" colspan="12">
+    tbody.innerHTML = `<tr><td class="no-results" colspan="11">
       <i class="bi bi-exclamation-triangle-fill"></i>
       <p>An error occurred while loading results. Please try again.</p>
     </td></tr>`;
@@ -356,7 +392,6 @@ async function fetchShuffleReleases({ retryCount = 0 } = {}) {
     const { min: yearMin, max: yearMax } = parseYearRange();
     const ratingRange = parseRangeInput(document.getElementById("rating_range").value.trim());
     const ratingCountRange = parseRangeInput(document.getElementById("rating_count_range").value.trim());
-    const priceRange = parseRangeInput(document.getElementById("price_range").value.trim());
     const wantRange = parseRangeInput(document.getElementById("want_range").value.trim());
     
     let query = supabaseClient.from("releases").select("*", { count: "exact" });
@@ -376,8 +411,6 @@ async function fetchShuffleReleases({ retryCount = 0 } = {}) {
     if (ratingRange.max !== Infinity) query = query.lte("average_rating", ratingRange.max);
     if (ratingCountRange.min !== -Infinity) query = query.gte("rating_count", ratingCountRange.min);
     if (ratingCountRange.max !== Infinity) query = query.lte("rating_count", ratingCountRange.max);
-    if (priceRange.min !== -Infinity) query = query.gte("lowest_price", priceRange.min);
-    if (priceRange.max !== Infinity) query = query.lte("lowest_price", priceRange.max);
     if (wantRange.min !== -Infinity) query = query.gte("want", wantRange.min);
     if (wantRange.max !== Infinity) query = query.lte("want", wantRange.max);
 
@@ -397,8 +430,6 @@ async function fetchShuffleReleases({ retryCount = 0 } = {}) {
     if (ratingRange.max !== Infinity) countOnlyQuery = countOnlyQuery.lte("average_rating", ratingRange.max);
     if (ratingCountRange.min !== -Infinity) countOnlyQuery = countOnlyQuery.gte("rating_count", ratingCountRange.min);
     if (ratingCountRange.max !== Infinity) countOnlyQuery = countOnlyQuery.lte("rating_count", ratingCountRange.max);
-    if (priceRange.min !== -Infinity) countOnlyQuery = countOnlyQuery.gte("lowest_price", priceRange.min);
-    if (priceRange.max !== Infinity) countOnlyQuery = countOnlyQuery.lte("lowest_price", priceRange.max);
     if (wantRange.min !== -Infinity) countOnlyQuery = countOnlyQuery.gte("want", wantRange.min);
     if (wantRange.max !== Infinity) countOnlyQuery = countOnlyQuery.lte("want", wantRange.max);
     countOnlyQuery = countOnlyQuery.abortSignal(currentFetchController.signal);
@@ -529,7 +560,7 @@ async function loadShuffleData() {
   try {
     // Show loading state
     const tbody = document.getElementById("releases-table-body");
-    tbody.innerHTML = `<tr><td class="no-results" colspan="12">
+    tbody.innerHTML = `<tr><td class="no-results" colspan="11">
       <div class="spinner-border text-primary" role="status">
         <span class="visually-hidden">Loading...</span>
       </div>
@@ -556,100 +587,404 @@ async function loadShuffleData() {
     
     console.error("Error in loadShuffleData:", error);
     const tbody = document.getElementById("releases-table-body");
-    tbody.innerHTML = `<tr><td class="no-results" colspan="12">
+    tbody.innerHTML = `<tr><td class="no-results" colspan="11">
       <i class="bi bi-exclamation-triangle-fill"></i>
       <p>An error occurred while loading shuffle results. Please try again.</p>
     </td></tr>`;
   }
 }
 
-// ------------------ Load Bookmarked Releases ------------------
-function loadBookmarks(page = 1) {
-  let bookmarks = getBookmarkedReleases();
-   // Apply filter criteria from the filter box:
-   const searchQuery = document.getElementById("searchInput").value.trim().toLowerCase();
-   const selectedGenre = document.getElementById("genre").value;
-   const selectedStyle = document.getElementById("style").value;
-   const { min: yearMin, max: yearMax } = parseYearRange();
-   const ratingRange = parseRangeInput(document.getElementById("rating_range").value.trim());
-   const ratingCountRange = parseRangeInput(document.getElementById("rating_count_range").value.trim());
-   const priceRange = parseRangeInput(document.getElementById("price_range").value.trim());
-   const wantRange = parseRangeInput(document.getElementById("want_range").value.trim());
- 
-   bookmarks = bookmarks.filter(release => {
-     let pass = true;
-     if (searchQuery && release.title) {
-       if (!release.title.toLowerCase().includes(searchQuery)) pass = false;
-     }
-     if (selectedGenre) {
-       if (release.genre) {
-         const genres = release.genre.split(",").map(g => g.trim());
-         if (!genres.includes(selectedGenre)) pass = false;
-       } else {
-         pass = false;
-       }
-     }
-     if (selectedStyle) {
-       if (release.style) {
-         const styles = release.style.split(",").map(s => s.trim());
-         if (!styles.includes(selectedStyle)) pass = false;
-       } else {
-         pass = false;
-       }
-     }
-     if (release.year) {
-       const yr = parseInt(release.year, 10);
-       if (yr < yearMin || yr > yearMax) pass = false;
-     }
-     if (release.average_rating !== undefined) {
-       const rating = parseFloat(release.average_rating);
-       if (rating < ratingRange.min || rating > ratingRange.max) pass = false;
-     }
-     if (release.rating_count !== undefined) {
-       const count = parseFloat(release.rating_count);
-       if (count < ratingCountRange.min || count > ratingCountRange.max) pass = false;
-     }
-     if (release.lowest_price !== undefined) {
-       const price = parseFloat(release.lowest_price);
-       if (price < priceRange.min || price > priceRange.max) pass = false;
-     }
-     if (release.want !== undefined) {
-       const want = parseFloat(release.want);
-       if (want < wantRange.min || want > wantRange.max) pass = false;
-     }
-     return pass;
-   });
- 
-   // Sort bookmarks (default: most recent bookmarked first)
-   if (!sortConfig || sortConfig.key === "title") {
-     bookmarks.sort((a, b) => new Date(b.bookmarkedAt) - new Date(a.bookmarkedAt));
-   } else {
-     bookmarks.sort((a, b) => {
-       let aVal = a[sortConfig.key];
-       let bVal = b[sortConfig.key];
-       if (sortConfig.key === "title" || sortConfig.key === "label") {
-         aVal = aVal ? aVal.toLowerCase() : "";
-         bVal = bVal ? bVal.toLowerCase() : "";
-       } else if (["year", "have", "want", "lowest_price"].includes(sortConfig.key)) {
-         aVal = parseFloat(aVal) || 0;
-         bVal = parseFloat(bVal) || 0;
-       } else if (sortConfig.key === "rating_coeff") {
-         aVal = parseFloat(a.rating_coeff) || 0;
-         bVal = parseFloat(b.rating_coeff) || 0;
-       }
-       if (aVal < bVal) return sortConfig.order === "asc" ? -1 : 1;
-       if (aVal > bVal) return sortConfig.order === "asc" ? 1 : -1;
-       return 0;
-     });
-   }
-   // Filtering logic (omitted for brevity)
-  totalRecords = bookmarks.length;
-  totalPages = Math.ceil(totalRecords / pageSize) || 1;
-  currentPage = page;
-  filteredData = bookmarks.slice((page - 1) * pageSize, page * pageSize);
-  renderTable();
-  renderPagination();
-  document.getElementById("pagination").style.display = "block";
+// ------------------ Load Watchlist (from Discogs or Local) ------------------
+async function loadWatchlist(page = 1) {
+  try {
+    // If logged in with Discogs, fetch from Discogs wantlist
+    if (oauthUser && userAccessToken) {
+      await showUserWantlist(page);
+      return;
+    }
+    
+    // Otherwise, load from local storage
+    let watchlist = getWatchlistedReleases();
+    
+    // Ensure watchlist is an array
+    if (!Array.isArray(watchlist)) {
+      console.warn("Invalid watchlist data in localStorage, resetting to empty array");
+      watchlist = [];
+      saveWatchlistedReleases(watchlist);
+    }
+    
+    // Apply filters, sorting, and pagination using the shared function
+    applyFiltersAndPaginationToWantlist(watchlist, page);
+  } catch (error) {
+    console.error("Error loading watchlist:", error);
+    const tbody = document.getElementById("releases-table-body");
+    tbody.innerHTML = '<tr><td class="no-results" colspan="11"><i class="bi bi-exclamation-triangle-fill"></i><p>An error occurred while loading your watchlist. Please try again.</p></td></tr>';
+    filteredData = [];
+    totalRecords = 0;
+    document.getElementById("pagination").style.display = "none";
+    document.getElementById("results-count").textContent = "Showing 0 result(s)";
+  }
+}
+
+// ------------------ Show User Wantlist from Discogs ------------------
+async function showUserWantlist(page = 1) {
+  console.log('showUserWantlist called with page:', page);
+  console.log('oauthUser:', oauthUser ? oauthUser.username : 'null');
+  console.log('userAccessToken:', userAccessToken ? 'present' : 'null');
+  
+  if (!oauthUser || !userAccessToken) {
+    console.log('No auth, falling back to local watchlist');
+    // Fallback to local watchlist
+    await loadWatchlist(page);
+    return;
+  }
+  
+  // If we have cached data, use it and just apply filters/sorting/pagination
+  if (cachedDiscogsWantlist && Array.isArray(cachedDiscogsWantlist)) {
+    console.log('Using cached wantlist:', cachedDiscogsWantlist.length, 'items');
+    applyFiltersAndPaginationToWantlist(cachedDiscogsWantlist, page);
+    return;
+  }
+  
+  console.log('Fetching fresh wantlist from Discogs...');
+  
+  // Show loading in table
+  const tbody = document.getElementById("releases-table-body");
+  tbody.innerHTML = '<tr><td class="no-results" colspan="11"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p>Loading your Discogs wantlist...</p></td></tr>';
+  
+  try {
+    const username = oauthUser.username;
+    const firstPageUrl = `https://api.discogs.com/users/${username}/wants?per_page=100&page=1`;
+    console.log('Requesting:', firstPageUrl);
+    
+    const firstPage = await makeAuthenticatedRequest(firstPageUrl);
+    console.log('First page received:', firstPage.wants?.length || 0, 'items');
+    
+    if (!firstPage.wants || firstPage.wants.length === 0) {
+      tbody.innerHTML = '<tr><td class="no-results" colspan="11"><i class="bi bi-info-circle"></i><p>Your Discogs wantlist is empty.</p></td></tr>';
+      filteredData = [];
+      totalRecords = 0;
+      cachedDiscogsWantlist = [];
+      return;
+    }
+    
+    // Collect all wantlist items across pages
+    let allWants = [...firstPage.wants];
+    const discogsTotalPages = firstPage.pagination?.pages || 1;
+    
+    if (discogsTotalPages > 1) {
+      tbody.innerHTML = `<tr><td class="no-results" colspan="11"><div class="spinner-border text-primary" role="status"></div><p>Loading ${discogsTotalPages} pages from your wantlist...</p></td></tr>`;
+      
+      const pagePromises = [];
+      for (let page = 2; page <= Math.min(discogsTotalPages, 10); page++) {
+        const pageUrl = `https://api.discogs.com/users/${username}/wants?per_page=100&page=${page}`;
+        pagePromises.push(makeAuthenticatedRequest(pageUrl));
+      }
+      
+      const pages = await Promise.all(pagePromises);
+      pages.forEach(pageData => {
+        if (pageData.wants) {
+          allWants = allWants.concat(pageData.wants);
+        }
+      });
+    }
+    
+    // Show enrichment progress
+    tbody.innerHTML = `<tr><td class="no-results" colspan="11">
+      <div class="spinner-border text-primary" role="status"></div>
+      <p class="mt-2 mb-1">Enriching ${allWants.length} releases...</p>
+      <p class="mb-0" id="enrichProgress"><strong>0 / ${allWants.length}</strong> (0%)</p>
+    </td></tr>`;
+    
+    // Enrich each wantlist item with full data from your Supabase database
+    const wantlistReleases = [];
+    const releaseIds = allWants.map(item => item.basic_information.id);
+    
+    // Batch fetch from Supabase (chunked to avoid query size limits)
+    let dbReleases = [];
+    const CHUNK_SIZE = 100; // Supabase has limits on .in() query size
+    
+    try {
+      // Process in chunks to avoid 406 errors
+      for (let i = 0; i < releaseIds.length; i += CHUNK_SIZE) {
+        const chunk = releaseIds.slice(i, i + CHUNK_SIZE);
+        try {
+          const { data, error } = await supabaseClient
+            .from("releases")
+            .select("*")
+            .in("id", chunk);
+          
+          if (!error && data) {
+            dbReleases = dbReleases.concat(data);
+          } else if (error) {
+            console.warn(`Chunk ${i / CHUNK_SIZE + 1} fetch error:`, error);
+          }
+        } catch (chunkError) {
+          console.warn(`Chunk ${i / CHUNK_SIZE + 1} error:`, chunkError);
+        }
+      }
+    } catch (error) {
+      console.error('Batch fetch error:', error);
+    }
+    
+    // Create a map for quick lookup
+    const dbReleaseMap = new Map();
+    dbReleases.forEach(r => dbReleaseMap.set(r.id, r));
+    
+    for (let i = 0; i < allWants.length; i++) {
+      const item = allWants[i];
+      const release = item.basic_information;
+      
+      try {
+        // Check if we have this release in our database
+        const dbRelease = dbReleaseMap.get(release.id);
+        
+        if (dbRelease) {
+          // Use data from your database
+          wantlistReleases.push({
+            ...dbRelease,
+            watchlistedAt: new Date().toISOString(),
+            inWantlist: true
+          });
+        } else {
+          // Fallback: use basic data from Discogs
+          wantlistReleases.push({
+            id: release.id,
+            title: release.title,
+            label: release.labels?.map(l => l.name).join(', ') || '',
+            year: release.year || '',
+            genre: (release.genres || []).join(', '),
+            style: (release.styles || []).join(', '),
+            average_rating: 0,
+            rating_count: 0,
+            demand_coeff: 0,
+            gem_value: 0,
+            have: 0,
+            want: 0,
+            link: `https://www.discogs.com/release/${release.id}`,
+            youtube_links: '',
+            watchlistedAt: new Date().toISOString(),
+            inWantlist: true
+          });
+        }
+      } catch (error) {
+        console.error(`Failed to process release ${release.id}:`, error);
+        // Add fallback data even on error
+        wantlistReleases.push({
+          id: release.id,
+          title: release.title,
+          label: release.labels?.map(l => l.name).join(', ') || '',
+          year: release.year || '',
+          genre: (release.genres || []).join(', '),
+          style: (release.styles || []).join(', '),
+          average_rating: 0,
+          rating_count: 0,
+          demand_coeff: 0,
+          gem_value: 0,
+          have: 0,
+          want: 0,
+          link: `https://www.discogs.com/release/${release.id}`,
+          youtube_links: '',
+          watchlistedAt: new Date().toISOString(),
+          inWantlist: true
+        });
+      }
+      
+      // Update progress
+      const progressEl = document.getElementById('enrichProgress');
+      if (progressEl) {
+        const completed = i + 1;
+        const percentage = Math.round((completed / allWants.length) * 100);
+        progressEl.innerHTML = `<strong>${completed} / ${allWants.length}</strong> (${percentage}%)`;
+      }
+    }
+    
+    // Cache the enriched wantlist
+    cachedDiscogsWantlist = wantlistReleases;
+    
+    // Apply filters, sorting, and pagination
+    applyFiltersAndPaginationToWantlist(wantlistReleases, page);
+    
+  } catch (error) {
+    console.error('Failed to fetch Discogs wantlist:', error);
+    const tbody = document.getElementById("releases-table-body");
+    
+    // Display specific error message
+    let errorMessage = error.message || 'Failed to load Discogs wantlist. Please try again.';
+    
+    // Add helpful action based on error type
+    let actionMessage = '';
+    let showRetryButton = true;
+    
+    if (error.message.includes('Authentication failed') || error.message.includes('Not authenticated')) {
+      actionMessage = '<br><small>Please open the profile menu and log in again with a valid token.</small>';
+      showRetryButton = false;
+      // Auto-logout on auth failure
+      userAccessToken = null;
+      oauthUser = null;
+      cachedDiscogsWantlist = null;
+      localStorage.removeItem("discogsToken");
+      localStorage.removeItem("discogsUsername");
+    } else if (error.message.includes('Rate limit')) {
+      actionMessage = '<br><small>Please wait a minute before trying again.</small>';
+    } else if (error.message.includes('Network error')) {
+      actionMessage = '<br><small>Please check your internet connection.</small>';
+    }
+    
+    const retryButtonHTML = showRetryButton 
+      ? '<br><br><button class="btn btn-brand" onclick="cachedDiscogsWantlist = null; loadWatchlist(1);">Retry</button>'
+      : '';
+    
+    tbody.innerHTML = `<tr><td class="no-results" colspan="11">
+      <i class="bi bi-exclamation-triangle-fill"></i>
+      <p>${errorMessage}${actionMessage}${retryButtonHTML}</p>
+    </td></tr>`;
+    
+    filteredData = [];
+    totalRecords = 0;
+    cachedDiscogsWantlist = null; // Clear cache on error
+    document.getElementById("pagination").style.display = "none";
+    document.getElementById("results-count").textContent = "Showing 0 result(s)";
+  }
+}
+
+// Apply filters, sorting, and pagination to wantlist (works for both local and Discogs)
+function applyFiltersAndPaginationToWantlist(watchlist, page = 1) {
+  try {
+    // Ensure watchlist is an array
+    if (!Array.isArray(watchlist)) {
+      console.error("Invalid watchlist data:", watchlist);
+      watchlist = [];
+    }
+    
+    // Apply filter criteria from the filter box:
+    const searchQuery = document.getElementById("searchInput").value.trim().toLowerCase();
+    const selectedGenre = document.getElementById("genre").value;
+    const selectedStyle = document.getElementById("style").value;
+    const { min: yearMin, max: yearMax } = parseYearRange();
+    const ratingRange = parseRangeInput(document.getElementById("rating_range").value.trim());
+    const ratingCountRange = parseRangeInput(document.getElementById("rating_count_range").value.trim());
+    const wantRange = parseRangeInput(document.getElementById("want_range").value.trim());
+
+    let filtered = watchlist.filter(release => {
+      let pass = true;
+      if (searchQuery && release.title) {
+        if (!release.title.toLowerCase().includes(searchQuery)) pass = false;
+      }
+      if (selectedGenre) {
+        if (release.genre) {
+          const genres = release.genre.split(",").map(g => g.trim());
+          if (!genres.includes(selectedGenre)) pass = false;
+        } else {
+          pass = false;
+        }
+      }
+      if (selectedStyle) {
+        if (release.style) {
+          const styles = release.style.split(",").map(s => s.trim());
+          if (!styles.includes(selectedStyle)) pass = false;
+        } else {
+          pass = false;
+        }
+      }
+      if (release.year) {
+        const yr = parseInt(release.year, 10);
+        if (yr < yearMin || yr > yearMax) pass = false;
+      }
+      if (release.average_rating !== undefined) {
+        const rating = parseFloat(release.average_rating);
+        if (rating < ratingRange.min || rating > ratingRange.max) pass = false;
+      }
+      if (release.rating_count !== undefined) {
+        const count = parseFloat(release.rating_count);
+        if (count < ratingCountRange.min || count > ratingCountRange.max) pass = false;
+      }
+      if (release.want !== undefined) {
+        const want = parseFloat(release.want);
+        if (want < wantRange.min || want > wantRange.max) pass = false;
+      }
+      return pass;
+    });
+
+    // Sort watchlist
+    if (!sortConfig || sortConfig.key === "title") {
+      filtered.sort((a, b) => {
+        // If title sorting, use title comparison
+        if (sortConfig && sortConfig.key === "title") {
+          const aVal = a.title ? a.title.toLowerCase() : "";
+          const bVal = b.title ? b.title.toLowerCase() : "";
+          if (aVal < bVal) return sortConfig.order === "asc" ? -1 : 1;
+          if (aVal > bVal) return sortConfig.order === "asc" ? 1 : -1;
+          return 0;
+        }
+        // Default: most recent watchlisted first
+        return new Date(b.watchlistedAt || 0) - new Date(a.watchlistedAt || 0);
+      });
+    } else {
+      filtered.sort((a, b) => {
+        let aVal = a[sortConfig.key];
+        let bVal = b[sortConfig.key];
+        if (sortConfig.key === "title" || sortConfig.key === "label") {
+          aVal = aVal ? aVal.toLowerCase() : "";
+          bVal = bVal ? bVal.toLowerCase() : "";
+        } else if (["year", "have", "want"].includes(sortConfig.key)) {
+          aVal = parseFloat(aVal) || 0;
+          bVal = parseFloat(bVal) || 0;
+        } else if (sortConfig.key === "rating_coeff") {
+          aVal = parseFloat(a.rating_coeff) || 0;
+          bVal = parseFloat(b.rating_coeff) || 0;
+        }
+        if (aVal < bVal) return sortConfig.order === "asc" ? -1 : 1;
+        if (aVal > bVal) return sortConfig.order === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+    
+    // Apply pagination
+    totalRecords = filtered.length;
+    totalPages = Math.ceil(totalRecords / pageSize) || 1;
+    currentPage = page;
+    
+    // Handle empty results
+    if (filtered.length === 0) {
+      filteredData = [];
+      const tbody = document.getElementById("releases-table-body");
+      if (watchlist.length === 0) {
+        // Watchlist is completely empty
+        const message = oauthUser && userAccessToken 
+          ? '<tr><td class="no-results" colspan="11"><i class="bi bi-info-circle"></i><p>Your Discogs wantlist is empty.</p></td></tr>'
+          : '<tr><td class="no-results" colspan="11"><i class="bi bi-info-circle"></i><p>Your local watchlist is empty. Add some releases by clicking the eye icon.</p></td></tr>';
+        tbody.innerHTML = message;
+      } else {
+        // Filters resulted in no matches
+        tbody.innerHTML = '<tr><td class="no-results" colspan="11"><i class="bi bi-exclamation-triangle-fill"></i><p>No results match your filters. Try adjusting your filter criteria.</p></td></tr>';
+      }
+      document.getElementById("pagination").style.display = "none";
+      document.getElementById("results-count").textContent = "Showing 0 result(s)";
+      return;
+    }
+    
+    filteredData = filtered.slice((page - 1) * pageSize, page * pageSize);
+    
+    // Ensure the table container is visible
+    const tableContainer = document.querySelector(".table-container");
+    if (tableContainer) {
+      tableContainer.style.display = "block";
+    }
+    
+    renderTable();
+    renderPagination();
+    
+    const resultsCountText = oauthUser && userAccessToken 
+      ? `Showing ${totalRecords} result(s) from your Discogs wantlist`
+      : `Showing ${totalRecords} result(s)`;
+    document.getElementById("results-count").textContent = resultsCountText;
+  } catch (error) {
+    console.error("Error in applyFiltersAndPaginationToWantlist:", error);
+    const tbody = document.getElementById("releases-table-body");
+    tbody.innerHTML = '<tr><td class="no-results" colspan="11"><i class="bi bi-exclamation-triangle-fill"></i><p>An error occurred while loading your watchlist. Please try again.</p></td></tr>';
+    document.getElementById("pagination").style.display = "none";
+  }
 }
 
 
@@ -793,7 +1128,7 @@ function renderTable() {
   tbody.innerHTML = "";
   document.getElementById("results-count").textContent = `Showing ${totalRecords} result(s)`;
   if (filteredData.length === 0) {
-    tbody.innerHTML = `<tr><td class="no-results" colspan="12">
+    tbody.innerHTML = `<tr><td class="no-results" colspan="11">
           <i class="bi bi-exclamation-triangle-fill"></i>
           <p>No results found.</p>
         </td></tr>`;
@@ -806,16 +1141,17 @@ function renderTable() {
     if (interactedReleases.includes(release.id)) {
       tr.classList.add("greyed-out");
     }
-    const tdBookmark = document.createElement("td");
-    tdBookmark.className = "text-center";
-    const bookmarkIcon = document.createElement("i");
-    bookmarkIcon.style.fontSize = "1rem";
-    bookmarkIcon.className = "bi bookmark-star " + (isBookmarked(release.id) ? "bi-bookmark-fill bookmarked" : "bi-bookmark");
-    bookmarkIcon.title = "Toggle Bookmark";
-    bookmarkIcon.addEventListener("click", () => {
-      toggleBookmark(release);
+    const tdWatchlist = document.createElement("td");
+    tdWatchlist.className = "text-center";
+    const watchlistIcon = document.createElement("i");
+    watchlistIcon.style.fontSize = "1rem";
+    watchlistIcon.style.cursor = "pointer";
+    watchlistIcon.className = "bi watchlist-icon " + (isWatchlisted(release.id) ? "bi-eye-fill watchlisted" : "bi-eye");
+    watchlistIcon.title = oauthUser ? "Toggle Discogs Wantlist" : "Toggle Local Watchlist";
+    watchlistIcon.addEventListener("click", async () => {
+      await toggleWatchlist(release);
     });
-    tdBookmark.appendChild(bookmarkIcon);
+    tdWatchlist.appendChild(watchlistIcon);
     if (isMobile) {
       const tdMobile = document.createElement("td");
       tdMobile.className = "mobile-cell";
@@ -884,13 +1220,13 @@ function renderTable() {
       tdMobile.innerHTML += previewContent;
       tdMobile.appendChild(titleDiv);
       tdMobile.appendChild(ratingDiv);
-      const mobileBookmarkContainer = document.createElement("div");
-      mobileBookmarkContainer.className = "mobile-bookmark";
-      mobileBookmarkContainer.style.position = "absolute";
-      mobileBookmarkContainer.style.bottom = "8px";
-      mobileBookmarkContainer.style.right = "8px";
-      mobileBookmarkContainer.appendChild(tdBookmark);
-      tdMobile.appendChild(mobileBookmarkContainer);
+      const mobileWatchlistContainer = document.createElement("div");
+      mobileWatchlistContainer.className = "mobile-watchlist";
+      mobileWatchlistContainer.style.position = "absolute";
+      mobileWatchlistContainer.style.bottom = "8px";
+      mobileWatchlistContainer.style.right = "8px";
+      mobileWatchlistContainer.appendChild(tdWatchlist);
+      tdMobile.appendChild(mobileWatchlistContainer);
       tr.appendChild(tdMobile);
     } else {
       const tdTitle = document.createElement("td");
@@ -981,11 +1317,7 @@ function renderTable() {
       tdWant.className = "text-center";
       tdWant.textContent = release.want || 0;
       tr.appendChild(tdWant);
-      const tdPrice = document.createElement("td");
-      tdPrice.className = "text-center";
-      tdPrice.textContent = release.lowest_price !== undefined ? `${parseFloat(release.lowest_price).toFixed(2)}$` : "N/A";
-      tr.appendChild(tdPrice);
-      tr.appendChild(tdBookmark);
+      tr.appendChild(tdWatchlist);
       const tdPreview = document.createElement("td");
       tdPreview.className = "text-center";
       if (release.youtube_links) {
@@ -1076,17 +1408,25 @@ function attachCopyHandlers() {
 function renderPagination() {
   const pag = document.getElementById("pagination");
   pag.innerHTML = "";
-  if (totalPages <= 1) return;
+  if (totalPages <= 1) {
+    pag.style.display = "none";
+    return;
+  }
+  pag.style.display = "block";
   const prevLi = document.createElement("li");
   prevLi.className = `page-item ${currentPage === 1 ? "disabled" : ""}`;
   const prevLink = document.createElement("a");
   prevLink.className = "page-link";
   prevLink.href = "#";
   prevLink.innerHTML = `<i class="bi bi-chevron-left"></i> Prev`;
-  prevLink.addEventListener("click", (e) => {
+  prevLink.addEventListener("click", async (e) => {
     e.preventDefault();
     if (currentPage > 1) {
-      activeTab === "bookmark" ? loadBookmarks(currentPage - 1) : loadData(currentPage - 1);
+      if (activeTab === "watchlist") {
+        await loadWatchlist(currentPage - 1);
+      } else {
+        loadData(currentPage - 1);
+      }
     }
   });
   prevLi.appendChild(prevLink);
@@ -1100,9 +1440,13 @@ function renderPagination() {
     pageLink.className = "page-link";
     pageLink.href = "#";
     pageLink.textContent = p;
-    pageLink.addEventListener("click", (e) => {
+    pageLink.addEventListener("click", async (e) => {
       e.preventDefault();
-      activeTab === "bookmark" ? loadBookmarks(p) : loadData(p);
+      if (activeTab === "watchlist") {
+        await loadWatchlist(p);
+      } else {
+        loadData(p);
+      }
     });
     pageLi.appendChild(pageLink);
     pag.appendChild(pageLi);
@@ -1113,10 +1457,14 @@ function renderPagination() {
   nextLink.className = "page-link";
   nextLink.href = "#";
   nextLink.innerHTML = `Next <i class="bi bi-chevron-right"></i>`;
-  nextLink.addEventListener("click", (e) => {
+  nextLink.addEventListener("click", async (e) => {
     e.preventDefault();
     if (currentPage < totalPages) {
-      activeTab === "bookmark" ? loadBookmarks(currentPage + 1) : loadData(currentPage + 1);
+      if (activeTab === "watchlist") {
+        await loadWatchlist(currentPage + 1);
+      } else {
+        loadData(currentPage + 1);
+      }
     }
   });
   nextLi.appendChild(nextLink);
@@ -1191,8 +1539,8 @@ document.querySelectorAll("th[data-sort]").forEach((header) => {
       }
     }
     localStorage.setItem("sortConfig", JSON.stringify(sortConfig));
-    if (activeTab === "bookmark") {
-      loadBookmarks(currentPage);
+    if (activeTab === "watchlist") {
+      loadWatchlist(currentPage).catch(err => console.error("Sort error:", err));
     } else {
       loadData(currentPage);
     }
@@ -1252,58 +1600,51 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
   
-  // ------------------ Import Discogs Collection functionality ------------------
-  document.getElementById("import-discogs-btn").addEventListener("click", () => {
-    document.getElementById("import-discogs-file").click();
-  });
-  document.getElementById("import-discogs-file").addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      importDiscogsCollection(file);
-    }
-  });
 
+  // Initialize authentication
+  initializeAuth();
+  
   sortConfig = JSON.parse(localStorage.getItem("sortConfig") || '{"key":"title","order":"asc"}');
-  const navBookmark = document.getElementById("tab-bookmark");
-  if (navBookmark) {
-    navBookmark.innerHTML = '<i class="bi bi-bookmark"></i>';
+  const navWatchlist = document.getElementById("tab-watchlist");
+  if (navWatchlist) {
+    navWatchlist.innerHTML = '<i class="bi bi-eye"></i>';
   }
-  initializeFilters().then(() => {
+  initializeFilters().then(async () => {
     if (activeTab === "search") {
       loadData(1);
     } else if (activeTab === "shuffle") {
       loadShuffleData();
-    } else if (activeTab === "bookmark") {
-      loadBookmarks(1);
+    } else if (activeTab === "watchlist") {
+      await loadWatchlist(1);
     }
   });
   applySavedColumnWidths();
   makeTableResizable();
   updateSortIndicators();
   updateFilterButtons();
-  document.getElementById("filter-form").addEventListener("submit", (e) => {
+  document.getElementById("filter-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     trackFilterApplied();
     if (activeTab === "search") {
       loadData(1);
     } else if (activeTab === "shuffle") {
       loadShuffleData();
-    } else if (activeTab === "bookmark") {
-      loadBookmarks(1);
+    } else if (activeTab === "watchlist") {
+      await loadWatchlist(1);
     }
   });
   // Debounced filter change handler
   let filterTimeout;
   function handleFilterChange() {
     clearTimeout(filterTimeout);
-    filterTimeout = setTimeout(() => {
+    filterTimeout = setTimeout(async () => {
       trackFilterApplied();
       if (activeTab === "search") {
         loadData(1);
       } else if (activeTab === "shuffle") {
         loadShuffleData();
-      } else if (activeTab === "bookmark") {
-        loadBookmarks(1);
+      } else if (activeTab === "watchlist") {
+        await loadWatchlist(1);
       }
     }, 600); // 600ms debounce (increased from 300ms to reduce request frequency)
   }
@@ -1315,7 +1656,6 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("year_range").addEventListener("input", handleFilterChange);
   document.getElementById("rating_range").addEventListener("input", handleFilterChange);
   document.getElementById("rating_count_range").addEventListener("input", handleFilterChange);
-  document.getElementById("price_range").addEventListener("input", handleFilterChange);
   document.getElementById("want_range").addEventListener("input", handleFilterChange);
   const darkModeToggle = document.getElementById("darkModeToggle");
   if (localStorage.getItem("darkModeEnabled") === "true" || !localStorage.getItem("darkModeEnabled")) {
@@ -1337,7 +1677,7 @@ document.addEventListener("DOMContentLoaded", () => {
     activeTab = "search";
     document.getElementById("tab-search").classList.add("active");
     document.getElementById("tab-shuffle").classList.remove("active");
-    document.getElementById("tab-bookmark").classList.remove("active");
+    document.getElementById("tab-watchlist").classList.remove("active");
     updateFilterButtons();
     loadData(1);
     document.getElementById("searchInput").focus();
@@ -1347,25 +1687,37 @@ document.addEventListener("DOMContentLoaded", () => {
     activeTab = "shuffle";
     document.getElementById("tab-shuffle").classList.add("active");
     document.getElementById("tab-search").classList.remove("active");
-    document.getElementById("tab-bookmark").classList.remove("active");
+    document.getElementById("tab-watchlist").classList.remove("active");
     updateFilterButtons();
     loadShuffleData();
   });
-  document.getElementById("tab-bookmark").addEventListener("click", (e) => {
+  document.getElementById("tab-watchlist").addEventListener("click", async (e) => {
     e.preventDefault();
-    activeTab = "bookmark";
-    document.getElementById("tab-bookmark").classList.add("active");
+    activeTab = "watchlist";
+    document.getElementById("tab-watchlist").classList.add("active");
     document.getElementById("tab-search").classList.remove("active");
     document.getElementById("tab-shuffle").classList.remove("active");
     updateFilterButtons();
-    loadBookmarks(1);
+    
+    // Sync with Discogs wantlist if logged in and clear cache to force refresh
+    if (oauthUser && userAccessToken) {
+      try {
+        await fetchUserWantlistIds();
+        cachedDiscogsWantlist = null; // Clear cache to force refresh
+        console.log('Synced wantlist on tab open');
+      } catch (error) {
+        console.error('Failed to sync wantlist:', error);
+      }
+    }
+    
+    await loadWatchlist(1);
   });
   document.getElementById("shuffle-btn").addEventListener("click", (e) => {
     e.preventDefault();
     activeTab = "shuffle";
     document.getElementById("tab-shuffle").classList.add("active");
     document.getElementById("tab-search").classList.remove("active");
-    document.getElementById("tab-bookmark").classList.remove("active");
+    document.getElementById("tab-watchlist").classList.remove("active");
     trackFilterApplied();
     loadShuffleData();
   });
@@ -1392,14 +1744,13 @@ document.addEventListener("DOMContentLoaded", () => {
         activeTab = "search";
         document.getElementById("tab-search").classList.add("active");
         document.getElementById("tab-shuffle").classList.remove("active");
-        document.getElementById("tab-bookmark").classList.remove("active");
+        document.getElementById("tab-watchlist").classList.remove("active");
         updateFilterButtons();
       }
       loadData(1);
     }
   });
 
-  document.getElementById("export-btn").addEventListener("click", exportUserData);
 });
 
 /* -----------------------
@@ -1426,19 +1777,21 @@ async function importDiscogsCollection(file) {
       alert("Error querying releases from database.");
       return;
     }
-    const bookmarked = getBookmarkedReleases();
+    const watchlisted = getWatchlistedReleases();
     let importedCount = 0;
     uniqueIds.forEach(rid => {
       const match = data.find(item => String(item.id) === rid);
-      if (match && !bookmarked.some(b => String(b.id) === rid)) {
-        match.bookmarkedAt = new Date().toISOString();
-        bookmarked.push(match);
+      if (match && !watchlisted.some(b => String(b.id) === rid)) {
+        match.watchlistedAt = new Date().toISOString();
+        watchlisted.push(match);
         importedCount++;
       }
     });
     const failedCount = uniqueIds.length - data.length;
-    saveBookmarkedReleases(bookmarked);
-    if (activeTab === "bookmark") loadBookmarks(currentPage);
+    saveWatchlistedReleases(watchlisted);
+    if (activeTab === "watchlist") {
+      await loadWatchlist(currentPage);
+    }
     alert(`Discogs Collection Import Completed. Imported: ${importedCount}, Failed: ${failedCount}`);
   } catch (err) {
     alert("Error processing CSV file.");
@@ -1458,13 +1811,11 @@ async function importDiscogsCollection(file) {
    Tab Toggle and Filter Button Update
 ------------------------- */
 function updateFilterButtons() {
-  if (activeTab === "bookmark") {
+  if (activeTab === "watchlist") {
     document.getElementById("filter-wrapper").style.display = "block";
-    document.getElementById("bookmark-actions").style.display = "block";
     document.getElementById("pagination").style.display = "block";
   } else {
     document.getElementById("filter-wrapper").style.display = "block";
-    document.getElementById("bookmark-actions").style.display = "none";
   }
   
   if (activeTab === "search") {
@@ -1475,7 +1826,7 @@ function updateFilterButtons() {
     document.querySelector(".filter-btn").style.display = "none";
     document.querySelector(".shuffle-btn").style.display = "inline-block";
     document.getElementById("pagination").style.display = "none";
-  } else if (activeTab === "bookmark") {
+  } else if (activeTab === "watchlist") {
     document.querySelector(".filter-btn").style.display = "inline-block";
     document.querySelector(".shuffle-btn").style.display = "none";
     document.getElementById("pagination").style.display = "block";
@@ -1486,6 +1837,10 @@ function updateFilterButtons() {
    YouTube Integration
 ------------------------- */
 function initializeYouTubePlayers() {
+  if (!filteredData || filteredData.length === 0) {
+    return;
+  }
+  
   filteredData.forEach((release) => {
     if (release.youtube_links) {
       const yID = extractYouTubeID(release.youtube_links);
@@ -1509,14 +1864,535 @@ function initializeYouTubePlayers() {
   });
 }
 
-// ------------------ Export Discogs Data ------------------
+// Make function available globally for YouTube API
+window.initializeYouTubePlayers = initializeYouTubePlayers;
+
+// ------------------ Discogs API Rate Limiting ------------------
+async function waitForRateLimit() {
+  const now = Date.now();
+  
+  // Reset counter if we're in a new minute window
+  if (now - requestWindowStart >= 60000) {
+    requestCount = 0;
+    requestWindowStart = now;
+  }
+  
+  // If we've hit the per-minute limit, wait until the next window
+  if (requestCount >= MAX_REQUESTS_PER_MINUTE) {
+    const waitTime = 60000 - (now - requestWindowStart) + 1000;
+    if (waitTime > 0) {
+      console.log(`Rate limit: waiting ${Math.ceil(waitTime / 1000)}s before next request`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      requestCount = 0;
+      requestWindowStart = Date.now();
+    }
+  }
+  
+  // Ensure minimum interval between requests
+  const timeSinceLastRequest = now - lastRequestTime;
+  if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+    const waitTime = MIN_REQUEST_INTERVAL - timeSinceLastRequest;
+    await new Promise(resolve => setTimeout(resolve, waitTime));
+  }
+  
+  lastRequestTime = Date.now();
+  requestCount++;
+}
+
+// ------------------ Discogs Authenticated Requests ------------------
+async function makeAuthenticatedRequest(url) {
+  if (!userAccessToken) {
+    throw new Error('Not authenticated. Please log in first.');
+  }
+  
+  await waitForRateLimit();
+  
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Discogs token=${userAccessToken}`,
+        'User-Agent': 'Gruuvs/1.0'
+      }
+    });
+    
+    if (!response.ok) {
+      // Provide more specific error messages
+      if (response.status === 401) {
+        throw new Error('Authentication failed. Your token may be invalid or expired. Please log in again.');
+      } else if (response.status === 429) {
+        throw new Error('Rate limit exceeded. Please wait a moment and try again.');
+      } else if (response.status === 404) {
+        throw new Error('Wantlist not found. Please check your Discogs settings.');
+      } else if (response.status >= 500) {
+        throw new Error('Discogs server error. Please try again later.');
+      } else {
+        throw new Error(`Request failed with status ${response.status}`);
+      }
+    }
+    
+    return await response.json();
+  } catch (error) {
+    // Re-throw with more context if it's a network error
+    if (error.message.includes('Failed to fetch') || error.name === 'TypeError') {
+      throw new Error('Network error. Please check your internet connection and try again.');
+    }
+    throw error;
+  }
+}
+
+// Make Discogs API request (without auth, for public data)
+async function makeDiscogsRequest(url) {
+  await waitForRateLimit();
+  
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'User-Agent': 'Gruuvs/1.0'
+    }
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Request failed: ${response.status}`);
+  }
+  
+  return await response.json();
+}
+
+// Fetch user's wantlist IDs from Discogs
+async function fetchUserWantlistIds() {
+  if (!oauthUser || !userAccessToken) {
+    return;
+  }
+  
+  try {
+    const username = oauthUser.username;
+    const firstPageUrl = `https://api.discogs.com/users/${username}/wants?per_page=100&page=1`;
+    const firstPage = await makeAuthenticatedRequest(firstPageUrl);
+    
+    userWantlistIds.clear();
+    
+    // Add IDs from first page
+    if (firstPage.wants) {
+      firstPage.wants.forEach(item => {
+        userWantlistIds.add(item.basic_information.id);
+      });
+    }
+    
+    // Fetch remaining pages if needed
+    const totalPages = firstPage.pagination?.pages || 1;
+    if (totalPages > 1) {
+      const pagePromises = [];
+      for (let page = 2; page <= Math.min(totalPages, 10); page++) {
+        const pageUrl = `https://api.discogs.com/users/${username}/wants?per_page=100&page=${page}`;
+        pagePromises.push(makeAuthenticatedRequest(pageUrl));
+      }
+      
+      const pages = await Promise.all(pagePromises);
+      pages.forEach(pageData => {
+        if (pageData.wants) {
+          pageData.wants.forEach(item => {
+            userWantlistIds.add(item.basic_information.id);
+          });
+        }
+      });
+    }
+    
+    console.log(`Loaded ${userWantlistIds.size} items from Discogs wantlist`);
+  } catch (error) {
+    console.error('Failed to fetch wantlist IDs:', error);
+  }
+}
+
+// Toggle release in Discogs wantlist
+async function toggleDiscogsWantlist(releaseId) {
+  if (!oauthUser || !userAccessToken) {
+    // If not logged in, just toggle local watchlist
+    const release = filteredData.find(r => r.id === releaseId);
+    if (release) {
+      toggleWatchlist(release);
+    }
+    return;
+  }
+  
+  const isInWantlist = userWantlistIds.has(releaseId);
+  
+  // Show loading on icon
+  const row = document.querySelector(`tr[data-id="${releaseId}"]`);
+  const watchlistIcon = row?.querySelector(".watchlist-icon");
+  const originalClasses = watchlistIcon?.className;
+  
+  if (watchlistIcon) {
+    watchlistIcon.className = "bi bi-hourglass-split watchlist-icon";
+    watchlistIcon.style.opacity = "0.5";
+  }
+  
+  try {
+    const username = oauthUser.username;
+    const wantlistUrl = `https://api.discogs.com/users/${username}/wants/${releaseId}`;
+    
+    await waitForRateLimit();
+    
+    if (isInWantlist) {
+      // Remove from wantlist
+      const response = await fetch(wantlistUrl, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Discogs token=${userAccessToken}`,
+          'User-Agent': 'Gruuvs/1.0'
+        }
+      });
+      
+      if (response.status === 204) {
+        userWantlistIds.delete(releaseId);
+        console.log(`Removed ${releaseId} from Discogs wantlist`);
+        
+        // Also remove from local watchlist
+        const watchlist = getWatchlistedReleases();
+        const updated = watchlist.filter(r => r.id !== releaseId);
+        saveWatchlistedReleases(updated);
+        
+        // Update icon
+        if (watchlistIcon) {
+          watchlistIcon.className = "bi bi-eye watchlist-icon";
+          watchlistIcon.style.opacity = "1";
+        }
+      } else {
+        throw new Error(`Failed to remove from wantlist: ${response.status}`);
+      }
+    } else {
+      // Add to wantlist
+      const response = await fetch(wantlistUrl, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Discogs token=${userAccessToken}`,
+          'User-Agent': 'Gruuvs/1.0'
+        }
+      });
+      
+      if (response.status === 201 || response.status === 204) {
+        userWantlistIds.add(releaseId);
+        console.log(`Added ${releaseId} to Discogs wantlist`);
+        
+        // Also add to local watchlist
+        const release = filteredData.find(r => r.id === releaseId);
+        if (release) {
+          const watchlist = getWatchlistedReleases();
+          const exists = watchlist.some(r => r.id === release.id);
+          if (!exists) {
+            release.watchlistedAt = new Date().toISOString();
+            watchlist.push(release);
+            saveWatchlistedReleases(watchlist);
+          }
+        }
+        
+        // Update icon
+        if (watchlistIcon) {
+          watchlistIcon.className = "bi bi-eye-fill watchlisted watchlist-icon";
+          watchlistIcon.style.opacity = "1";
+        }
+      } else {
+        throw new Error(`Failed to add to wantlist: ${response.status}`);
+      }
+    }
+    
+    // Track event
+    gtag("event", "discogs_wantlist_toggle", {
+      action: isInWantlist ? "removed" : "added",
+      release_id: releaseId
+    });
+    
+    // Clear cache so changes are reflected
+    cachedDiscogsWantlist = null;
+    
+    // Refresh table if on watchlist tab
+    if (activeTab === "watchlist") {
+      await loadWatchlist(currentPage);
+    }
+    
+  } catch (error) {
+    console.error('Failed to update Discogs wantlist:', error);
+    
+    // Restore original icon
+    if (watchlistIcon && originalClasses) {
+      watchlistIcon.className = originalClasses;
+      watchlistIcon.style.opacity = "1";
+    }
+    
+    alert('Failed to update wantlist. Please try again.');
+  }
+}
+
+// Sync local watchlist with Discogs wantlist
+async function syncWithDiscogsWantlist() {
+  if (!oauthUser || !userAccessToken) {
+    alert('Please log in with Discogs to sync your wantlist.');
+    return;
+  }
+  
+  const syncBtn = document.getElementById("syncWantlistBtn");
+  const originalText = syncBtn.innerHTML;
+  
+  try {
+    // Show loading state
+    syncBtn.disabled = true;
+    syncBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Syncing...';
+    
+    await fetchUserWantlistIds();
+    
+    // Merge Discogs wantlist with local watchlist
+    const localWatchlist = getWatchlistedReleases();
+    const localIds = new Set(localWatchlist.map(r => r.id));
+    
+    // Count how many are new from Discogs
+    const newFromDiscogs = [...userWantlistIds].filter(id => !localIds.has(id));
+    
+    // Update wantlist count in UI
+    const wantlistCountValue = document.getElementById("wantlistCountValue");
+    if (wantlistCountValue) {
+      wantlistCountValue.textContent = userWantlistIds.size;
+    }
+    
+    // Success message
+    syncBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Synced!';
+    setTimeout(() => {
+      syncBtn.innerHTML = originalText;
+      syncBtn.disabled = false;
+    }, 2000);
+    
+    const message = newFromDiscogs.length > 0
+      ? `Synced ${userWantlistIds.size} items from Discogs wantlist!\n${newFromDiscogs.length} new items found.`
+      : `Synced ${userWantlistIds.size} items from Discogs wantlist!\nAll items are already in your local watchlist.`;
+    
+    alert(message);
+    
+    // Refresh table if on watchlist tab
+    if (activeTab === "watchlist") {
+      await loadWatchlist(currentPage);
+    }
+    
+  } catch (error) {
+    console.error('Failed to sync wantlist:', error);
+    syncBtn.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i>Failed';
+    setTimeout(() => {
+      syncBtn.innerHTML = originalText;
+      syncBtn.disabled = false;
+    }, 2000);
+    alert('Failed to sync with Discogs. Please check your connection and try again.');
+  }
+}
+
+// ------------------ Profile Modal Functions ------------------
+function openProfile() {
+  const modal = new bootstrap.Modal(document.getElementById("profileModal"));
+  updateProfileUI();
+  modal.show();
+}
+
+function updateProfileUI() {
+  const token = localStorage.getItem("discogsToken");
+  const username = localStorage.getItem("discogsUsername");
+  
+  const syncBtn = document.getElementById("syncWantlistBtn");
+  const loginIndicator = document.getElementById("login-indicator");
+  const wantlistCountValue = document.getElementById("wantlistCountValue");
+  const watchlistTab = document.getElementById("tab-watchlist");
+  
+  if (token && username) {
+    document.getElementById("tokenLoginSection").style.display = "none";
+    document.getElementById("tokenLoggedInSection").style.display = "block";
+    document.getElementById("profileUsername").textContent = username;
+    
+    // Update wantlist count
+    if (wantlistCountValue) {
+      wantlistCountValue.textContent = userWantlistIds.size;
+    }
+    
+    // Show login indicator
+    if (loginIndicator) {
+      loginIndicator.style.display = "block";
+    }
+    
+    // Update watchlist tab title to show it's connected to Discogs
+    if (watchlistTab) {
+      watchlistTab.title = "Discogs Wantlist";
+    }
+    
+    // Enable sync button
+    if (syncBtn) {
+      syncBtn.disabled = false;
+      syncBtn.classList.remove("btn-secondary");
+      syncBtn.classList.add("btn-primary");
+    }
+    
+    // Set global variables
+    userAccessToken = token;
+    oauthUser = { username: username };
+  } else {
+    document.getElementById("tokenLoginSection").style.display = "block";
+    document.getElementById("tokenLoggedInSection").style.display = "none";
+    
+    // Hide login indicator
+    if (loginIndicator) {
+      loginIndicator.style.display = "none";
+    }
+    
+    // Update watchlist tab title to show it's local only
+    if (watchlistTab) {
+      watchlistTab.title = "Local Watchlist";
+    }
+    
+    // Disable sync button
+    if (syncBtn) {
+      syncBtn.disabled = true;
+      syncBtn.classList.remove("btn-primary");
+      syncBtn.classList.add("btn-secondary");
+    }
+    
+    userAccessToken = null;
+    oauthUser = null;
+  }
+}
+
+// Initialize authentication state on page load
+function initializeAuth() {
+  const token = localStorage.getItem("discogsToken");
+  const username = localStorage.getItem("discogsUsername");
+  const loginIndicator = document.getElementById("login-indicator");
+  const watchlistTab = document.getElementById("tab-watchlist");
+  
+  if (token && username) {
+    userAccessToken = token;
+    oauthUser = { username: username };
+    
+    // Show login indicator
+    if (loginIndicator) {
+      loginIndicator.style.display = "block";
+    }
+    
+    // Update watchlist tab title
+    if (watchlistTab) {
+      watchlistTab.title = "Discogs Wantlist";
+    }
+    
+    // Fetch wantlist IDs in background
+    fetchUserWantlistIds().catch(err => {
+      console.error("Failed to load wantlist on init:", err);
+    });
+  } else {
+    // Hide login indicator
+    if (loginIndicator) {
+      loginIndicator.style.display = "none";
+    }
+    
+    // Set local watchlist title
+    if (watchlistTab) {
+      watchlistTab.title = "Local Watchlist";
+    }
+  }
+}
+
+async function loginWithToken() {
+  const token = document.getElementById("profileTokenInput").value.trim();
+  
+  if (!token) {
+    alert("Please enter your Discogs Personal Access Token");
+    return;
+  }
+  
+  try {
+    // Verify token by fetching user identity
+    const response = await fetch("https://api.discogs.com/oauth/identity", {
+      headers: {
+        "Authorization": `Discogs token=${token}`,
+        "User-Agent": "Gruuvs/1.0"
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error("Invalid token");
+    }
+    
+    const userData = await response.json();
+    
+    // Save token and username
+    localStorage.setItem("discogsToken", token);
+    localStorage.setItem("discogsUsername", userData.username);
+    
+    // Set global variables
+    userAccessToken = token;
+    oauthUser = userData;
+    
+    // Fetch wantlist IDs
+    await fetchUserWantlistIds();
+    
+    // Update UI
+    updateProfileUI();
+    
+    alert(`Successfully logged in as ${userData.username}! Loaded ${userWantlistIds.size} items from your wantlist.`);
+  } catch (error) {
+    console.error("Login error:", error);
+    alert("Failed to login. Please check your token and try again.");
+  }
+}
+
+function logoutDiscogs() {
+  localStorage.removeItem("discogsToken");
+  localStorage.removeItem("discogsUsername");
+  userAccessToken = null;
+  oauthUser = null;
+  userWantlistIds.clear();
+  cachedDiscogsWantlist = null; // Clear cached wantlist on logout
+  updateProfileUI();
+  alert("Successfully logged out");
+}
+
+// ------------------ Export Watchlist Data ------------------
 function exportUserData() {
-  const bookmarkedReleases = JSON.parse(localStorage.getItem("bookmarkedReleases") || "[]");
-  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(bookmarkedReleases, null, 2));
+  const watchlistedReleases = JSON.parse(localStorage.getItem("watchlistedReleases") || "[]");
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(watchlistedReleases, null, 2));
   const dlAnchorElem = document.createElement("a");
   dlAnchorElem.setAttribute("href", dataStr);
-  dlAnchorElem.setAttribute("download", "discogs_bookmarks.json");
+  dlAnchorElem.setAttribute("download", "gruuvs_watchlist.json");
   dlAnchorElem.click();
+}
+
+// ------------------ Import Watchlist Data ------------------
+async function handleImportWatchlist(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  try {
+    const text = await file.text();
+    const importedData = JSON.parse(text);
+    
+    if (!Array.isArray(importedData)) {
+      alert("Invalid file format. Please select a valid watchlist JSON file.");
+      return;
+    }
+    
+    const currentWatchlist = getWatchlistedReleases();
+    const merged = [...currentWatchlist];
+    let addedCount = 0;
+    
+    importedData.forEach(release => {
+      if (!merged.some(r => r.id === release.id)) {
+        merged.push(release);
+        addedCount++;
+      }
+    });
+    
+    saveWatchlistedReleases(merged);
+    
+    if (activeTab === "watchlist") {
+      loadWatchlist(currentPage);
+    }
+    
+    alert(`Import completed! Added ${addedCount} new releases to your watchlist.`);
+  } catch (error) {
+    console.error("Import error:", error);
+    alert("Failed to import watchlist. Please check the file format.");
+  }
 }
 
 
@@ -1529,14 +2405,12 @@ function trackFilterApplied() {
   const yearRange = document.getElementById("year_range").value.trim();
   const ratingRange = document.getElementById("rating_range").value.trim();
   const ratingCountRange = document.getElementById("rating_count_range").value.trim();
-  const priceRange = document.getElementById("price_range").value.trim();
   gtag("event", "filter_applied", {
     genre: genre || "All",
     style: style || "All",
     year_range: yearRange || "All",
     rating_range: ratingRange || "All",
     rating_count_range: ratingCountRange || "All",
-    price_range: priceRange || "All",
   });
 }
 
@@ -1573,3 +2447,32 @@ document.addEventListener("DOMContentLoaded", function() {
     cookiePopup.style.display = "none";
   });
 });
+
+/* -----------------------
+   Homepage Navigation
+------------------------- */
+function goToHomepage(event) {
+  event.preventDefault();
+  // Reset to search tab
+  activeTab = "search";
+  document.getElementById("tab-search").classList.add("active");
+  document.getElementById("tab-shuffle").classList.remove("active");
+  document.getElementById("tab-watchlist").classList.remove("active");
+  
+  // Clear search and filters
+  document.getElementById("searchInput").value = "";
+  document.getElementById("genre").value = "";
+  document.getElementById("style").value = "";
+  document.getElementById("year_range").value = "";
+  document.getElementById("rating_range").value = "";
+  document.getElementById("rating_count_range").value = "";
+  document.getElementById("want_range").value = "";
+  
+  // Reset sort to default
+  sortConfig = { key: "title", order: "asc" };
+  localStorage.setItem("sortConfig", JSON.stringify(sortConfig));
+  
+  updateFilterButtons();
+  updateSortIndicators();
+  loadData(1);
+}

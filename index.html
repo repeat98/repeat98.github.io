@@ -95,7 +95,7 @@
       <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container MainContainer">
           <div class="d-flex justify-content-between align-items-center w-100">
-            <a class="navbar-brand d-flex align-items-center" href="#">
+            <a class="navbar-brand d-flex align-items-center" href="#" onclick="goToHomepage(event)">
               <img
                 src="img/gruuvs-logo.svg"
                 alt="Gruuvs Logo"
@@ -120,11 +120,16 @@
                 <span id="tab-shuffle" class="tab-icon">
                   <i class="bi bi-shuffle"></i>
                 </span>
-                <!-- New Bookmark tab -->
-                <span id="tab-bookmark" class="tab-icon">
-                  <i class="bi bi-bookmark"></i>
+                <!-- Watchlist tab -->
+                <span id="tab-watchlist" class="tab-icon">
+                  <i class="bi bi-eye"></i>
                 </span>
               </div>
+              <!-- Profile icon -->
+              <span class="tab-icon" id="profile-icon" onclick="openProfile()" style="cursor: pointer; position: relative;" title="Profile">
+                <i class="bi bi-person-circle"></i>
+                <span id="login-indicator" style="display: none; position: absolute; top: 2px; right: 2px; width: 8px; height: 8px; background-color: #4caf50; border-radius: 50%; border: 1px solid var(--bg-color);"></span>
+              </span>
               <div class="dark-mode-toggle">
                 <span id="darkModeToggle">
                   <span class="moon-icon"><i class="bi bi-moon"></i></span>
@@ -172,7 +177,7 @@
             >
               <i class="bi bi-chevron-down"></i>
             </button>
-            <!-- Extra filters wrapped (year, rating, count, price) -->
+            <!-- Extra filters wrapped (year, rating, count) -->
             <div class="mobile-extra-filters-wrapper">
               <!-- Year range -->
               <div class="filter-group">
@@ -207,17 +212,6 @@
                   placeholder="e.g. 10-100"
                 />
               </div>
-              <!-- Price range -->
-              <div class="filter-group">
-                <label for="price_range" class="filter-label">Price range</label>
-                <input
-                  type="text"
-                  id="price_range"
-                  name="price_range"
-                  class="filter-input"
-                  placeholder="e.g. 10-25"
-                />
-              </div>
               <!-- Want range -->
               <div class="filter-group">
                 <label for="want_range" class="filter-label">Want range</label>
@@ -248,20 +242,6 @@
         </div>
       </div>
 
-      <!-- Bookmark Actions: Export and Import Discogs (placed below the filter box) -->
-      <div class="container MainContainer" id="bookmark-actions" style="display: none">
-        <div class="d-flex justify-content-end gap-2 mb-2">
-          <button id="export-btn" class="btn btn-primary">
-            <i class="bi bi-download"></i> Export Discogs Data
-          </button>
-          <button id="import-discogs-btn" class="btn btn-secondary">
-            <i class="bi bi-upload"></i> Import Discogs Collection
-          </button>
-          <!-- Hidden file inputs for importing and exporting -->
-          <input type="file" id="import-discogs-file" accept=".csv" style="display: none" />
-        </div>
-      </div>
-
       <!-- Main Content container for table and pagination -->
       <div class="container MainContainer" style="position: relative">
         <!-- Results Count -->
@@ -280,7 +260,6 @@
             <option value="gem_value">Gem</option>
             <option value="have">Have</option>
             <option value="want">Want</option>
-            <option value="lowest_price">Price</option>
           </select>
           <button id="mobile-sort-toggle" title="Toggle sort order">
             <i class="bi bi-arrow-up"></i>
@@ -292,7 +271,7 @@
           <table class="table table-hover table-bordered mb-0">
             <thead>
               <tr>
-                <!-- Table header order: Title, Label, Year, Genre/Style, User Rating, Rarity, Gem, Have, Want, Price, Bookmark, Preview -->
+                <!-- Table header order: Title, Label, Year, Genre/Style, User Rating, Rarity, Gem, Have, Want, Bookmark, Preview -->
                 <th scope="col" data-column="Title" data-sort="title" style="min-width: 160px">
                   Title
                   <div class="resizer"></div>
@@ -329,12 +308,8 @@
                   Want
                   <div class="resizer"></div>
                 </th>
-                <th scope="col" class="text-center" data-sort="lowest_price" data-column="Price" style="width: 80px">
-                  Price
-                  <div class="resizer"></div>
-                </th>
-                <!-- Bookmark header placed immediately to the left of the preview column -->
-                <th style="width: 40px"></th>
+                <!-- Watchlist header placed immediately to the left of the preview column -->
+                <th style="width: 40px" title="Watchlist"></th>
                 <th scope="col" class="text-center" data-column="Preview" style="width: 220px">
                   Preview
                   <div class="resizer"></div>
@@ -361,6 +336,47 @@
               <a class="page-link" href="#">Next</a>
             </li>
           </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Profile Modal -->
+    <div class="modal fade" id="profileModal" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Profile & Data Management</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-4">
+              <h6 class="mb-3">Discogs Personal Access Token</h6>
+              <p class="text-muted small mb-2">To access your Collection and Wantlist, enter your Personal Access Token from <a href="https://www.discogs.com/settings/developers" target="_blank" class="brand-link">Discogs Developer Settings</a>.</p>
+              
+              <div id="tokenLoginSection" style="display: block;">
+                <input type="text" class="form-control mb-2" id="profileTokenInput" placeholder="Paste your token here">
+                <button type="button" class="btn btn-brand w-100 mb-2" onclick="loginWithToken()">
+                  <i class="bi bi-box-arrow-in-right"></i> Login
+                </button>
+              </div>
+              
+              <div id="tokenLoggedInSection" style="display: none;">
+                <div class="alert alert-success mb-2">
+                  <i class="bi bi-check-circle"></i> Logged in as <strong id="profileUsername"></strong>
+                  <div class="small mt-1" id="wantlistCount" style="opacity: 0.8;">
+                    <i class="bi bi-eye-fill"></i> <span id="wantlistCountValue">0</span> items in Discogs wantlist
+                  </div>
+                </div>
+                <p class="text-muted small mb-2"><strong>Note:</strong> When logged in, clicking the eye icon will sync with your Discogs wantlist. Visit the watchlist tab to sync all items.</p>
+                <button type="button" class="btn btn-outline-danger w-100" onclick="logoutDiscogs()">
+                  <i class="bi bi-box-arrow-right"></i> Logout
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          </div>
         </div>
       </div>
     </div>
