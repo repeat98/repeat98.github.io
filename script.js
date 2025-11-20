@@ -2,7 +2,26 @@
 const supabaseUrl = "https://oghdrmtorpeqaewttckr.supabase.co";
 const supabaseKey =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9naGRybXRvcnBlcWFld3R0Y2tyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDExNjc4OTksImV4cCI6MjA1Njc0Mzg5OX0.HW5aD19Hy__kpOLp5JHi8HXLzl7D6_Tu4UNyB3mNAHs";
-const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+
+// Optimized Supabase client configuration for better performance
+const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey, {
+  db: {
+    schema: 'public',
+  },
+  auth: {
+    persistSession: false, // Disable auth session for better performance
+  },
+  global: {
+    headers: {
+      'X-Client-Info': 'gruuvs-web-client',
+    },
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 2, // Throttle realtime events
+    },
+  },
+});
 
 // Global pagination and sorting config for Search and Shuffle
 let filteredData = [];
@@ -19,6 +38,11 @@ let activeTab = "search";
 let sortConfig = { key: "title", order: "asc" };
 
 let youtubeApiReady = false;
+
+// Request management for better performance
+let currentFetchController = null;
+let lastQuerySignature = null;
+let requestInProgress = false;
 
 
 // ------------------ Bookmark Data ------------------
@@ -71,6 +95,19 @@ function toggleBookmark(release) {
 }
 
 // ------------------ Helper Functions ------------------
+// Network connectivity check
+function checkNetworkConnection() {
+  if (!navigator.onLine) {
+    const tbody = document.getElementById("releases-table-body");
+    tbody.innerHTML = `<tr><td class="no-results" colspan="12">
+      <i class="bi bi-wifi-off"></i>
+      <p>No internet connection. Please check your network and try again.</p>
+    </td></tr>`;
+    return false;
+  }
+  return true;
+}
+
 function parseYearRange() {
   const yr = document.getElementById("year_range").value.trim();
   if (!yr) return { min: -Infinity, max: Infinity };
@@ -99,9 +136,50 @@ function parseRangeInput(rangeStr) {
 }
 
 // ------------------ Query Functions ------------------
+// Generate a unique signature for the current query to avoid duplicate requests
+function getQuerySignature(page) {
+  const selectedGenre = document.getElementById("genre").value;
+  const selectedStyle = document.getElementById("style").value;
+  const searchQuery = document.getElementById("searchInput").value.trim();
+  const yearRange = document.getElementById("year_range").value.trim();
+  const ratingRange = document.getElementById("rating_range").value.trim();
+  const ratingCountRange = document.getElementById("rating_count_range").value.trim();
+  const priceRange = document.getElementById("price_range").value.trim();
+  const wantRange = document.getElementById("want_range").value.trim();
+  
+  return JSON.stringify({
+    page,
+    genre: selectedGenre,
+    style: selectedStyle,
+    search: searchQuery,
+    year: yearRange,
+    rating: ratingRange,
+    ratingCount: ratingCountRange,
+    price: priceRange,
+    want: wantRange,
+    sort: sortConfig
+  });
+}
+
 async function fetchReleases({ page = 1, retryCount = 0 } = {}) {
-  const MAX_RETRIES = 3;
-  const RETRY_DELAY = 1000; // 1 second
+  const MAX_RETRIES = 2; // Reduced from 3
+  const RETRY_DELAYS = [2000, 5000]; // Exponential backoff: 2s, 5s
+
+  // Cancel any previous request
+  if (currentFetchController) {
+    currentFetchController.abort();
+  }
+  currentFetchController = new AbortController();
+  
+  // Check for duplicate requests
+  const querySignature = getQuerySignature(page);
+  if (querySignature === lastQuerySignature && requestInProgress) {
+    console.log("Duplicate request detected, skipping...");
+    return { data: filteredData, count: totalRecords };
+  }
+  
+  lastQuerySignature = querySignature;
+  requestInProgress = true;
 
   try {
     const selectedGenre = document.getElementById("genre").value;
@@ -114,14 +192,16 @@ async function fetchReleases({ page = 1, retryCount = 0 } = {}) {
     let query = supabaseClient.from("releases").select("*", { count: "exact" });
     const searchQuery = document.getElementById("searchInput").value.trim();
     
-    // Show loading state
-    const tbody = document.getElementById("releases-table-body");
-    tbody.innerHTML = `<tr><td class="no-results" colspan="12">
-      <div class="spinner-border text-primary" role="status">
-        <span class="visually-hidden">Loading...</span>
-      </div>
-      <p>Searching${retryCount > 0 ? ` (Attempt ${retryCount + 1}/${MAX_RETRIES})` : ''}...</p>
-    </td></tr>`;
+    // Show loading state only on first attempt
+    if (retryCount === 0) {
+      const tbody = document.getElementById("releases-table-body");
+      tbody.innerHTML = `<tr><td class="no-results" colspan="12">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+        <p>Searching...</p>
+      </td></tr>`;
+    }
 
     if (searchQuery) {
       query = query.ilike("title", `%${searchQuery}%`);
@@ -149,39 +229,66 @@ async function fetchReleases({ page = 1, retryCount = 0 } = {}) {
     const end = start + pageSize - 1;
     query = query.range(start, end);
     
+    // Add abort signal support
+    query = query.abortSignal(currentFetchController.signal);
+    
     const { data, count, error } = await query;
     
     if (error) {
-      console.error(`Error fetching releases data (attempt ${retryCount + 1}/${MAX_RETRIES}):`, error);
+      // Don't retry on abort errors
+      if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+        console.log('Request aborted');
+        requestInProgress = false;
+        return { data: [], count: 0 };
+      }
       
-      // If we haven't exceeded max retries, try again after a delay
-      if (retryCount < MAX_RETRIES) {
-        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+      console.error(`Error fetching releases data (attempt ${retryCount + 1}/${MAX_RETRIES + 1}):`, error);
+      
+      // Check if it's a rate limit or connection error
+      const isRetryableError = error.message?.includes('rate') || 
+                               error.message?.includes('timeout') ||
+                               error.message?.includes('network') ||
+                               error.code === 'PGRST301' || // PostgREST timeout
+                               error.code === '429'; // Too many requests
+      
+      // Only retry on specific errors
+      if (retryCount < MAX_RETRIES && isRetryableError) {
+        const delay = RETRY_DELAYS[retryCount];
+        console.log(`Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
         return fetchReleases({ page, retryCount: retryCount + 1 });
       }
       
-      // If we've exceeded retries, show error message
+      // If we've exceeded retries or it's not a retryable error, show error message
+      const tbody = document.getElementById("releases-table-body");
       tbody.innerHTML = `<tr><td class="no-results" colspan="12">
         <i class="bi bi-exclamation-triangle-fill"></i>
-        <p>Failed to load results after ${MAX_RETRIES} attempts. Please try again.</p>
+        <p>Failed to load results. Please try again in a moment.</p>
       </td></tr>`;
+      requestInProgress = false;
       return { data: [], count: 0 };
     }
 
-    // If we got data but it's empty and we haven't exceeded retries, try again
-    if ((!data || data.length === 0) && retryCount < MAX_RETRIES) {
-      console.log(`No results found (attempt ${retryCount + 1}/${MAX_RETRIES}), retrying...`);
-      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-      return fetchReleases({ page, retryCount: retryCount + 1 });
-    }
-
-    return { data, count };
-  } catch (error) {
-    console.error(`Error in fetchReleases (attempt ${retryCount + 1}/${MAX_RETRIES}):`, error);
+    // FIXED: Empty results are valid - don't retry!
+    // This was the main bug causing unnecessary retries and rate limiting
+    requestInProgress = false;
+    return { data: data || [], count: count || 0 };
     
-    // If we haven't exceeded max retries, try again after a delay
+  } catch (error) {
+    // Don't retry on abort errors
+    if (error.name === 'AbortError') {
+      console.log('Request aborted');
+      requestInProgress = false;
+      return { data: [], count: 0 };
+    }
+    
+    console.error(`Error in fetchReleases (attempt ${retryCount + 1}/${MAX_RETRIES + 1}):`, error);
+    
+    // Only retry on network errors
     if (retryCount < MAX_RETRIES) {
-      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+      const delay = RETRY_DELAYS[retryCount];
+      console.log(`Retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
       return fetchReleases({ page, retryCount: retryCount + 1 });
     }
     
@@ -189,16 +296,28 @@ async function fetchReleases({ page = 1, retryCount = 0 } = {}) {
     const tbody = document.getElementById("releases-table-body");
     tbody.innerHTML = `<tr><td class="no-results" colspan="12">
       <i class="bi bi-exclamation-triangle-fill"></i>
-      <p>Failed to load results after ${MAX_RETRIES} attempts. Please try again.</p>
+      <p>Failed to load results. Please try again in a moment.</p>
     </td></tr>`;
+    requestInProgress = false;
     return { data: [], count: 0 };
   }
 }
 
 async function loadData(page = 1) {
+  // Check network connectivity first
+  if (!checkNetworkConnection()) {
+    return;
+  }
+  
   try {
     const { data, count } = await fetchReleases({ page });
-    filteredData = data;
+    
+    // Check if request was aborted
+    if (!data && !count) {
+      return;
+    }
+    
+    filteredData = data || [];
     totalRecords = count || 0;
     totalPages = Math.ceil(totalRecords / pageSize) || 1;
     currentPage = page;
@@ -206,6 +325,11 @@ async function loadData(page = 1) {
     renderPagination();
     document.getElementById("pagination").style.display = "block";
   } catch (error) {
+    // Don't show error for aborted requests
+    if (error.name === 'AbortError') {
+      return;
+    }
+    
     console.error("Error in loadData:", error);
     const tbody = document.getElementById("releases-table-body");
     tbody.innerHTML = `<tr><td class="no-results" colspan="12">
@@ -216,8 +340,14 @@ async function loadData(page = 1) {
 }
 
 async function fetchShuffleReleases({ retryCount = 0 } = {}) {
-  const MAX_RETRIES = 3;
-  const RETRY_DELAY = 1000; // 1 second
+  const MAX_RETRIES = 2; // Reduced from 3
+  const RETRY_DELAYS = [2000, 5000]; // Exponential backoff
+
+  // Cancel any previous request
+  if (currentFetchController) {
+    currentFetchController.abort();
+  }
+  currentFetchController = new AbortController();
 
   try {
     // Apply filtering logic (same as in fetchReleases)
@@ -251,62 +381,137 @@ async function fetchShuffleReleases({ retryCount = 0 } = {}) {
     if (wantRange.min !== -Infinity) query = query.gte("want", wantRange.min);
     if (wantRange.max !== Infinity) query = query.lte("want", wantRange.max);
 
-    // Get the filtered count and data
-    const { data: allData, count, error } = await query;
-    if (error) {
-      console.error(`Error fetching shuffle data (attempt ${retryCount + 1}/${MAX_RETRIES}):`, error);
+    // Add abort signal support
+    query = query.abortSignal(currentFetchController.signal);
+
+    // First, get just the count efficiently without fetching all data
+    const countQuery = supabaseClient.from("releases").select("*", { count: "exact", head: true });
+    // Apply same filters to count query
+    let countOnlyQuery = countQuery;
+    if (searchQuery) countOnlyQuery = countOnlyQuery.ilike("title", `%${searchQuery}%`);
+    if (selectedGenre) countOnlyQuery = countOnlyQuery.ilike("genre", `%${selectedGenre}%`);
+    if (selectedStyle) countOnlyQuery = countOnlyQuery.ilike("style", `%${selectedStyle}%`);
+    if (yearMin !== -Infinity) countOnlyQuery = countOnlyQuery.gte("year", yearMin);
+    if (yearMax !== Infinity) countOnlyQuery = countOnlyQuery.lte("year", yearMax);
+    if (ratingRange.min !== -Infinity) countOnlyQuery = countOnlyQuery.gte("average_rating", ratingRange.min);
+    if (ratingRange.max !== Infinity) countOnlyQuery = countOnlyQuery.lte("average_rating", ratingRange.max);
+    if (ratingCountRange.min !== -Infinity) countOnlyQuery = countOnlyQuery.gte("rating_count", ratingCountRange.min);
+    if (ratingCountRange.max !== Infinity) countOnlyQuery = countOnlyQuery.lte("rating_count", ratingCountRange.max);
+    if (priceRange.min !== -Infinity) countOnlyQuery = countOnlyQuery.gte("lowest_price", priceRange.min);
+    if (priceRange.max !== Infinity) countOnlyQuery = countOnlyQuery.lte("lowest_price", priceRange.max);
+    if (wantRange.min !== -Infinity) countOnlyQuery = countOnlyQuery.gte("want", wantRange.min);
+    if (wantRange.max !== Infinity) countOnlyQuery = countOnlyQuery.lte("want", wantRange.max);
+    countOnlyQuery = countOnlyQuery.abortSignal(currentFetchController.signal);
+    
+    const { count, error: countError } = await countOnlyQuery;
+    
+    if (countError) {
+      // Don't retry on abort errors
+      if (countError.name === 'AbortError' || countError.message?.includes('aborted')) {
+        console.log('Shuffle request aborted');
+        return { data: [], count: 0 };
+      }
       
-      // If we haven't exceeded max retries, try again after a delay
-      if (retryCount < MAX_RETRIES) {
-        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+      console.error(`Error fetching shuffle count (attempt ${retryCount + 1}/${MAX_RETRIES + 1}):`, countError);
+      
+      const isRetryableError = countError.message?.includes('rate') || 
+                               countError.message?.includes('timeout') ||
+                               countError.message?.includes('network') ||
+                               countError.code === 'PGRST301' ||
+                               countError.code === '429';
+      
+      if (retryCount < MAX_RETRIES && isRetryableError) {
+        const delay = RETRY_DELAYS[retryCount];
+        console.log(`Retrying shuffle in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
         return fetchShuffleReleases({ retryCount: retryCount + 1 });
       }
       
       return { data: [], count: 0 };
     }
     
-    const shuffleSize = 10; // Increased from 5 to 10
+    const shuffleSize = 10;
+    
+    // FIXED: Empty results are valid - don't retry!
+    if (!count || count === 0) {
+      return { data: [], count: 0 };
+    }
+    
     if (count > shuffleSize) {
-      // Optimize: Instead of rebuilding the query, use the existing query with range
+      // Get random subset
       const randomOffset = Math.floor(Math.random() * (count - shuffleSize + 1));
       const { data, error: err } = await query.range(randomOffset, randomOffset + shuffleSize - 1);
       
       if (err) {
-        console.error(`Error fetching shuffle data with range (attempt ${retryCount + 1}/${MAX_RETRIES}):`, err);
+        // Don't retry on abort errors
+        if (err.name === 'AbortError' || err.message?.includes('aborted')) {
+          console.log('Shuffle request aborted');
+          return { data: [], count: 0 };
+        }
         
-        // If we haven't exceeded max retries, try again after a delay
-        if (retryCount < MAX_RETRIES) {
-          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+        console.error(`Error fetching shuffle data (attempt ${retryCount + 1}/${MAX_RETRIES + 1}):`, err);
+        
+        const isRetryableError = err.message?.includes('rate') || 
+                                 err.message?.includes('timeout') ||
+                                 err.message?.includes('network') ||
+                                 err.code === 'PGRST301' ||
+                                 err.code === '429';
+        
+        if (retryCount < MAX_RETRIES && isRetryableError) {
+          const delay = RETRY_DELAYS[retryCount];
+          console.log(`Retrying shuffle in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
           return fetchShuffleReleases({ retryCount: retryCount + 1 });
         }
         
         return { data: [], count: 0 };
       }
       
-      // If we got data but it's empty and we haven't exceeded retries, try again
-      if ((!data || data.length === 0) && retryCount < MAX_RETRIES) {
-        console.log(`No shuffle results found (attempt ${retryCount + 1}/${MAX_RETRIES}), retrying...`);
-        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-        return fetchShuffleReleases({ retryCount: retryCount + 1 });
-      }
-      
-      return { data, count: shuffleSize };
+      return { data: data || [], count: shuffleSize };
     } else {
-      // If we got data but it's empty and we haven't exceeded retries, try again
-      if ((!allData || allData.length === 0) && retryCount < MAX_RETRIES) {
-        console.log(`No shuffle results found (attempt ${retryCount + 1}/${MAX_RETRIES}), retrying...`);
-        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-        return fetchShuffleReleases({ retryCount: retryCount + 1 });
+      // Fetch all results if less than shuffle size
+      const { data: allData, error } = await query.limit(shuffleSize);
+      
+      if (error) {
+        // Don't retry on abort errors
+        if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+          console.log('Shuffle request aborted');
+          return { data: [], count: 0 };
+        }
+        
+        console.error(`Error fetching shuffle data (attempt ${retryCount + 1}/${MAX_RETRIES + 1}):`, error);
+        
+        const isRetryableError = error.message?.includes('rate') || 
+                                 error.message?.includes('timeout') ||
+                                 error.message?.includes('network') ||
+                                 error.code === 'PGRST301' ||
+                                 error.code === '429';
+        
+        if (retryCount < MAX_RETRIES && isRetryableError) {
+          const delay = RETRY_DELAYS[retryCount];
+          console.log(`Retrying shuffle in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return fetchShuffleReleases({ retryCount: retryCount + 1 });
+        }
+        
+        return { data: [], count: 0 };
       }
       
-      return { data: allData, count };
+      return { data: allData || [], count };
     }
   } catch (error) {
-    console.error(`Error in fetchShuffleReleases (attempt ${retryCount + 1}/${MAX_RETRIES}):`, error);
+    // Don't retry on abort errors
+    if (error.name === 'AbortError') {
+      console.log('Shuffle request aborted');
+      return { data: [], count: 0 };
+    }
     
-    // If we haven't exceeded max retries, try again after a delay
+    console.error(`Error in fetchShuffleReleases (attempt ${retryCount + 1}/${MAX_RETRIES + 1}):`, error);
+    
     if (retryCount < MAX_RETRIES) {
-      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+      const delay = RETRY_DELAYS[retryCount];
+      console.log(`Retrying shuffle in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
       return fetchShuffleReleases({ retryCount: retryCount + 1 });
     }
     
@@ -316,6 +521,11 @@ async function fetchShuffleReleases({ retryCount = 0 } = {}) {
 
 
 async function loadShuffleData() {
+  // Check network connectivity first
+  if (!checkNetworkConnection()) {
+    return;
+  }
+  
   try {
     // Show loading state
     const tbody = document.getElementById("releases-table-body");
@@ -327,12 +537,23 @@ async function loadShuffleData() {
     </td></tr>`;
 
     const { data, count } = await fetchShuffleReleases();
-    filteredData = data;
-    totalRecords = count;
+    
+    // Check if request was aborted
+    if (!data && !count) {
+      return;
+    }
+    
+    filteredData = data || [];
+    totalRecords = count || 0;
     currentPage = 1;
     renderTable();
     document.getElementById("pagination").style.display = "none";
   } catch (error) {
+    // Don't show error for aborted requests
+    if (error.name === 'AbortError') {
+      return;
+    }
+    
     console.error("Error in loadShuffleData:", error);
     const tbody = document.getElementById("releases-table-body");
     tbody.innerHTML = `<tr><td class="no-results" colspan="12">
@@ -440,7 +661,7 @@ async function initializeFilters() {
   const cachedFilters = localStorage.getItem('filtersCache');
   const cacheTimestamp = localStorage.getItem('filtersCacheTimestamp');
   const now = Date.now();
-  const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+  const CACHE_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days (increased from 24 hours)
 
   if (cachedFilters && cacheTimestamp && (now - parseInt(cacheTimestamp)) < CACHE_DURATION) {
     // Use cached data
@@ -449,28 +670,70 @@ async function initializeFilters() {
     return;
   }
 
-  // Fetch fresh data
+  // Fetch fresh data with optimized query
   try {
-    const { data, error } = await supabaseClient.from("releases").select("genre, style").limit(2000);
-    if (error) {
-      console.error("Error loading genres/styles:", error);
-      return;
-    }
-    
+    // Use a more efficient approach: fetch in smaller batches with pagination
+    // This reduces the load on the database and prevents timeouts
+    const BATCH_SIZE = 500;
     const genresSet = new Set();
     const stylesSet = new Set();
-    data.forEach((row) => {
-      if (row.genre) {
-        row.genre.split(",").forEach((g) => {
-          if (g.trim()) genresSet.add(g.trim());
-        });
+    
+    let hasMore = true;
+    let offset = 0;
+    let attempts = 0;
+    const MAX_BATCHES = 10; // Limit to 5000 records max
+    
+    while (hasMore && attempts < MAX_BATCHES) {
+      const { data, error } = await supabaseClient
+        .from("releases")
+        .select("genre, style")
+        .range(offset, offset + BATCH_SIZE - 1)
+        .limit(BATCH_SIZE);
+      
+      if (error) {
+        console.error(`Error loading genres/styles (batch ${attempts + 1}):`, error);
+        // If we have some data already, use it
+        if (genresSet.size > 0 || stylesSet.size > 0) {
+          break;
+        }
+        // Try with fallback data
+        if (cachedFilters) {
+          console.log("Using expired cache due to fetch error");
+          const { genres, styles } = JSON.parse(cachedFilters);
+          populateFilterOptions(genres, styles);
+          return;
+        }
+        return;
       }
-      if (row.style) {
-        row.style.split(",").forEach((s) => {
-          if (s.trim()) stylesSet.add(s.trim());
-        });
+      
+      if (!data || data.length === 0) {
+        hasMore = false;
+        break;
       }
-    });
+      
+      data.forEach((row) => {
+        if (row.genre) {
+          row.genre.split(",").forEach((g) => {
+            const trimmed = g.trim();
+            if (trimmed) genresSet.add(trimmed);
+          });
+        }
+        if (row.style) {
+          row.style.split(",").forEach((s) => {
+            const trimmed = s.trim();
+            if (trimmed) stylesSet.add(trimmed);
+          });
+        }
+      });
+      
+      offset += BATCH_SIZE;
+      attempts++;
+      
+      // If we got less than BATCH_SIZE, we've reached the end
+      if (data.length < BATCH_SIZE) {
+        hasMore = false;
+      }
+    }
     
     const genres = Array.from(genresSet).sort();
     const styles = Array.from(stylesSet).sort();
@@ -482,6 +745,13 @@ async function initializeFilters() {
     populateFilterOptions(genres, styles);
   } catch (error) {
     console.error("Error initializing filters:", error);
+    // Try to use expired cache if available
+    const cachedFilters = localStorage.getItem('filtersCache');
+    if (cachedFilters) {
+      console.log("Using expired cache due to error");
+      const { genres, styles } = JSON.parse(cachedFilters);
+      populateFilterOptions(genres, styles);
+    }
   }
 }
 
@@ -1035,7 +1305,7 @@ document.addEventListener("DOMContentLoaded", () => {
       } else if (activeTab === "bookmark") {
         loadBookmarks(1);
       }
-    }, 300); // 300ms debounce
+    }, 600); // 600ms debounce (increased from 300ms to reduce request frequency)
   }
 
   document.getElementById("genre").addEventListener("change", handleFilterChange);
@@ -1108,7 +1378,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (activeTab === "search") {
         loadData(1);
       }
-    }, 500); // Wait 500ms after user stops typing
+    }, 800); // Wait 800ms after user stops typing (increased from 500ms)
   });
 
   document.getElementById("searchInput").addEventListener("keydown", (e) => {
