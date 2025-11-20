@@ -245,7 +245,24 @@ async function fetchReleases({ page = 1, retryCount = 0 } = {}) {
     if (searchQuery) {
       query = query.ilike("title", `%${searchQuery}%`);
     }
-    // Note: Genre and style filtering with OR logic is done client-side after fetching
+    
+    // Only apply genre/style filters if not all are selected (optimization)
+    // When all are selected, no filter is needed
+    const allGenresSelected = selectedGenres.length === 0 || selectedGenres.length === totalGenresCount;
+    const allStylesSelected = selectedStyles.length === 0 || selectedStyles.length === totalStylesCount;
+    
+    // Apply genre filtering with OR logic only if some (but not all) are selected
+    if (!allGenresSelected && selectedGenres.length > 0) {
+      const genreConditions = selectedGenres.map(genre => `genre.ilike.%${genre}%`).join(',');
+      query = query.or(genreConditions);
+    }
+    
+    // Apply style filtering with OR logic only if some (but not all) are selected
+    if (!allStylesSelected && selectedStyles.length > 0) {
+      const styleConditions = selectedStyles.map(style => `style.ilike.%${style}%`).join(',');
+      query = query.or(styleConditions);
+    }
+    
     if (yearMin !== -Infinity) query = query.gte("year", yearMin);
     if (yearMax !== Infinity) query = query.lte("year", yearMax);
     if (ratingRange.min !== -Infinity) query = query.gte("average_rating", ratingRange.min);
@@ -349,38 +366,8 @@ async function loadData(page = 1) {
       return;
     }
     
-    // Apply client-side filtering with OR logic for genres and styles
-    let filtered = data || [];
-    const selectedGenres = multiSelectFilters.genre || [];
-    const selectedStyles = multiSelectFilters.style || [];
-    
-    if (selectedGenres.length > 0 || selectedStyles.length > 0) {
-      filtered = filtered.filter(release => {
-        let passGenre = selectedGenres.length === 0; // If no genres selected, pass
-        let passStyle = selectedStyles.length === 0; // If no styles selected, pass
-        
-        // Check genres with OR logic
-        if (selectedGenres.length > 0 && release.genre) {
-          const releaseGenres = release.genre.split(',').map(g => g.trim());
-          passGenre = selectedGenres.some(selectedGenre => 
-            releaseGenres.includes(selectedGenre)
-          );
-        }
-        
-        // Check styles with OR logic
-        if (selectedStyles.length > 0 && release.style) {
-          const releaseStyles = release.style.split(',').map(s => s.trim());
-          passStyle = selectedStyles.some(selectedStyle => 
-            releaseStyles.includes(selectedStyle)
-          );
-        }
-        
-        return passGenre && passStyle;
-      });
-    }
-    
-    filteredData = filtered;
-    totalRecords = filtered.length;
+    filteredData = data || [];
+    totalRecords = count || 0;
     totalPages = Math.ceil(totalRecords / pageSize) || 1;
     currentPage = page;
     renderTable();
@@ -413,7 +400,8 @@ async function fetchShuffleReleases({ retryCount = 0 } = {}) {
 
   try {
     // Apply filtering logic (same as in fetchReleases)
-    // Note: Genre and style filtering is done client-side for OR logic support
+    const selectedGenres = multiSelectFilters.genre || [];
+    const selectedStyles = multiSelectFilters.style || [];
     const { min: yearMin, max: yearMax } = parseYearRange();
     const ratingRange = parseRangeInput(document.getElementById("rating_range").value.trim());
     const ratingCountRange = parseRangeInput(document.getElementById("rating_count_range").value.trim());
@@ -424,7 +412,23 @@ async function fetchShuffleReleases({ retryCount = 0 } = {}) {
     if (searchQuery) {
       query = query.ilike("title", `%${searchQuery}%`);
     }
-    // Note: Genre and style filtering removed from query - done client-side
+    
+    // Only apply genre/style filters if not all are selected (optimization)
+    const allGenresSelected = selectedGenres.length === 0 || selectedGenres.length === totalGenresCount;
+    const allStylesSelected = selectedStyles.length === 0 || selectedStyles.length === totalStylesCount;
+    
+    // Apply genre filtering with OR logic only if some (but not all) are selected
+    if (!allGenresSelected && selectedGenres.length > 0) {
+      const genreConditions = selectedGenres.map(genre => `genre.ilike.%${genre}%`).join(',');
+      query = query.or(genreConditions);
+    }
+    
+    // Apply style filtering with OR logic only if some (but not all) are selected
+    if (!allStylesSelected && selectedStyles.length > 0) {
+      const styleConditions = selectedStyles.map(style => `style.ilike.%${style}%`).join(',');
+      query = query.or(styleConditions);
+    }
+    
     if (yearMin !== -Infinity) query = query.gte("year", yearMin);
     if (yearMax !== Infinity) query = query.lte("year", yearMax);
     if (ratingRange.min !== -Infinity) query = query.gte("average_rating", ratingRange.min);
@@ -439,9 +443,22 @@ async function fetchShuffleReleases({ retryCount = 0 } = {}) {
 
     // First, get just the count efficiently without fetching all data
     const countQuery = supabaseClient.from("releases").select("*", { count: "exact", head: true });
-    // Apply same filters to count query (without genre/style - those are client-side)
+    // Apply same filters to count query
     let countOnlyQuery = countQuery;
     if (searchQuery) countOnlyQuery = countOnlyQuery.ilike("title", `%${searchQuery}%`);
+    
+    // Apply genre filtering with OR logic to count query only if not all selected
+    if (!allGenresSelected && selectedGenres.length > 0) {
+      const genreConditions = selectedGenres.map(genre => `genre.ilike.%${genre}%`).join(',');
+      countOnlyQuery = countOnlyQuery.or(genreConditions);
+    }
+    
+    // Apply style filtering with OR logic to count query only if not all selected
+    if (!allStylesSelected && selectedStyles.length > 0) {
+      const styleConditions = selectedStyles.map(style => `style.ilike.%${style}%`).join(',');
+      countOnlyQuery = countOnlyQuery.or(styleConditions);
+    }
+    
     if (yearMin !== -Infinity) countOnlyQuery = countOnlyQuery.gte("year", yearMin);
     if (yearMax !== Infinity) countOnlyQuery = countOnlyQuery.lte("year", yearMax);
     if (ratingRange.min !== -Infinity) countOnlyQuery = countOnlyQuery.gte("average_rating", ratingRange.min);
@@ -1130,6 +1147,10 @@ function populateFilterOptions(genres, styles) {
   styles.forEach(style => {
     styleCounts.set(style, 1);
   });
+  
+  // Track total counts for "all selected" detection
+  totalGenresCount = genres.length;
+  totalStylesCount = styles.length;
   
   // Populate multi-select dropdowns
   if (genreDropdown) genreDropdown.populate(genreCounts);
@@ -1947,6 +1968,8 @@ class MultiSelectDropdown {
 // Initialize multi-select dropdowns
 let genreDropdown, styleDropdown;
 const allDropdowns = [];
+let totalGenresCount = 0;
+let totalStylesCount = 0;
 
 // Function to close all open dropdowns
 function closeAllDropdowns(excludeDropdown = null) {
