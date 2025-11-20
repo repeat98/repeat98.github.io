@@ -274,14 +274,21 @@ async function fetchReleases({ page = 1, retryCount = 0 } = {}) {
     const allGenresSelected = selectedGenres.length === 0 || selectedGenres.length === totalGenresCount;
     const allStylesSelected = selectedStyles.length === 0 || selectedStyles.length === totalStylesCount;
     
-    // Apply genre filtering with OR logic only if some (but not all) are selected
-    if (!allGenresSelected && selectedGenres.length > 0) {
+    // Build combined filter conditions
+    const hasGenreFilter = !allGenresSelected && selectedGenres.length > 0;
+    const hasStyleFilter = !allStylesSelected && selectedStyles.length > 0;
+    
+    if (hasGenreFilter && hasStyleFilter) {
+      // Both filters applied: use AND between genre and style, OR within each
+      const genreConditions = selectedGenres.map(genre => `genre.ilike.%${genre}%`).join(',');
+      const styleConditions = selectedStyles.map(style => `style.ilike.%${style}%`).join(',');
+      query = query.and(`or(${genreConditions}),or(${styleConditions})`);
+    } else if (hasGenreFilter) {
+      // Only genre filter
       const genreConditions = selectedGenres.map(genre => `genre.ilike.%${genre}%`).join(',');
       query = query.or(genreConditions);
-    }
-    
-    // Apply style filtering with OR logic only if some (but not all) are selected
-    if (!allStylesSelected && selectedStyles.length > 0) {
+    } else if (hasStyleFilter) {
+      // Only style filter
       const styleConditions = selectedStyles.map(style => `style.ilike.%${style}%`).join(',');
       query = query.or(styleConditions);
     }
@@ -440,14 +447,21 @@ async function fetchShuffleReleases({ retryCount = 0 } = {}) {
     const allGenresSelected = selectedGenres.length === 0 || selectedGenres.length === totalGenresCount;
     const allStylesSelected = selectedStyles.length === 0 || selectedStyles.length === totalStylesCount;
     
-    // Apply genre filtering with OR logic only if some (but not all) are selected
-    if (!allGenresSelected && selectedGenres.length > 0) {
+    // Build combined filter conditions
+    const hasGenreFilter = !allGenresSelected && selectedGenres.length > 0;
+    const hasStyleFilter = !allStylesSelected && selectedStyles.length > 0;
+    
+    if (hasGenreFilter && hasStyleFilter) {
+      // Both filters applied: use AND between genre and style, OR within each
+      const genreConditions = selectedGenres.map(genre => `genre.ilike.%${genre}%`).join(',');
+      const styleConditions = selectedStyles.map(style => `style.ilike.%${style}%`).join(',');
+      query = query.and(`or(${genreConditions}),or(${styleConditions})`);
+    } else if (hasGenreFilter) {
+      // Only genre filter
       const genreConditions = selectedGenres.map(genre => `genre.ilike.%${genre}%`).join(',');
       query = query.or(genreConditions);
-    }
-    
-    // Apply style filtering with OR logic only if some (but not all) are selected
-    if (!allStylesSelected && selectedStyles.length > 0) {
+    } else if (hasStyleFilter) {
+      // Only style filter
       const styleConditions = selectedStyles.map(style => `style.ilike.%${style}%`).join(',');
       query = query.or(styleConditions);
     }
@@ -470,14 +484,15 @@ async function fetchShuffleReleases({ retryCount = 0 } = {}) {
     let countOnlyQuery = countQuery;
     if (searchQuery) countOnlyQuery = countOnlyQuery.ilike("title", `%${searchQuery}%`);
     
-    // Apply genre filtering with OR logic to count query only if not all selected
-    if (!allGenresSelected && selectedGenres.length > 0) {
+    // Apply genre and style filters to count query with same logic
+    if (hasGenreFilter && hasStyleFilter) {
+      const genreConditions = selectedGenres.map(genre => `genre.ilike.%${genre}%`).join(',');
+      const styleConditions = selectedStyles.map(style => `style.ilike.%${style}%`).join(',');
+      countOnlyQuery = countOnlyQuery.and(`or(${genreConditions}),or(${styleConditions})`);
+    } else if (hasGenreFilter) {
       const genreConditions = selectedGenres.map(genre => `genre.ilike.%${genre}%`).join(',');
       countOnlyQuery = countOnlyQuery.or(genreConditions);
-    }
-    
-    // Apply style filtering with OR logic to count query only if not all selected
-    if (!allStylesSelected && selectedStyles.length > 0) {
+    } else if (hasStyleFilter) {
       const styleConditions = selectedStyles.map(style => `style.ilike.%${style}%`).join(',');
       countOnlyQuery = countOnlyQuery.or(styleConditions);
     }
