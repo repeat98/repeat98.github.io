@@ -130,7 +130,30 @@ async function toggleWatchlist(release) {
       }
     }
   }
-  if (activeTab === "watchlist") {
+  if (activeTab === "watchlist" && action === "removed" && row) {
+    // Remove the row from the DOM instead of reloading the entire page
+    row.remove();
+    
+    // Update the results count
+    const resultsCountEl = document.getElementById("results-count");
+    if (resultsCountEl && resultsCountEl.textContent) {
+      const match = resultsCountEl.textContent.match(/(\d+)/);
+      if (match) {
+        const newCount = parseInt(match[1]) - 1;
+        resultsCountEl.textContent = `${newCount} result${newCount !== 1 ? 's' : ''}`;
+      }
+    }
+    
+    // Check if the table is now empty
+    const tbody = document.getElementById("releases-table-body");
+    if (tbody && tbody.children.length === 0) {
+      tbody.innerHTML = `<tr><td class="no-results" colspan="11">
+        <i class="bi bi-eye-slash"></i>
+        <p>Your watchlist is empty.</p>
+      </td></tr>`;
+    }
+  } else if (activeTab === "watchlist" && action === "added") {
+    // If adding to watchlist while on watchlist tab, reload to show the new item
     loadWatchlist(currentPage).catch(err => console.error("Watchlist reload error:", err));
   }
 }
@@ -2581,7 +2604,34 @@ async function toggleDiscogsWantlist(releaseId) {
     
     // Refresh table if on watchlist tab
     if (activeTab === "watchlist") {
-      await loadWatchlist(currentPage);
+      if (isInWantlist) {
+        // Item was removed - just remove the row from DOM
+        if (row) {
+          row.remove();
+          
+          // Update the results count
+          const resultsCountEl = document.getElementById("results-count");
+          if (resultsCountEl && resultsCountEl.textContent) {
+            const match = resultsCountEl.textContent.match(/(\d+)/);
+            if (match) {
+              const newCount = parseInt(match[1]) - 1;
+              resultsCountEl.textContent = `${newCount} result${newCount !== 1 ? 's' : ''}`;
+            }
+          }
+          
+          // Check if the table is now empty
+          const tbody = document.getElementById("releases-table-body");
+          if (tbody && tbody.children.length === 0) {
+            tbody.innerHTML = `<tr><td class="no-results" colspan="11">
+              <i class="bi bi-eye-slash"></i>
+              <p>Your watchlist is empty.</p>
+            </td></tr>`;
+          }
+        }
+      } else {
+        // Item was added - reload to show the new item
+        await loadWatchlist(currentPage);
+      }
     }
     
   } catch (error) {
