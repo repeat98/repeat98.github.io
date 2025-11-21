@@ -2076,26 +2076,34 @@ function closeAllDropdowns(excludeDropdown = null) {
 }
 
 function initMultiSelectDropdowns() {
-    const genreSelect = document.getElementById('genre');
-    const styleSelect = document.getElementById('style');
-    
-    if (!genreSelect || !styleSelect) {
-        console.warn('Filter select elements not found, retrying...');
-        setTimeout(initMultiSelectDropdowns, 100);
-        return;
-    }
-    
-    try {
-        genreDropdown = new MultiSelectDropdown(genreSelect, 'genre', 'All Genres');
-        styleDropdown = new MultiSelectDropdown(styleSelect, 'style', 'All Styles');
+    return new Promise((resolve, reject) => {
+        const attemptInit = () => {
+            const genreSelect = document.getElementById('genre');
+            const styleSelect = document.getElementById('style');
+            
+            if (!genreSelect || !styleSelect) {
+                console.warn('Filter select elements not found, retrying...');
+                setTimeout(attemptInit, 100);
+                return;
+            }
+            
+            try {
+                genreDropdown = new MultiSelectDropdown(genreSelect, 'genre', 'All Genres');
+                styleDropdown = new MultiSelectDropdown(styleSelect, 'style', 'All Styles');
+                
+                // Store references
+                allDropdowns.push(genreDropdown, styleDropdown);
+                
+                console.log('Multi-select dropdowns initialized successfully');
+                resolve();
+            } catch (error) {
+                console.error('Error initializing multi-select dropdowns:', error);
+                reject(error);
+            }
+        };
         
-        // Store references
-        allDropdowns.push(genreDropdown, styleDropdown);
-        
-        console.log('Multi-select dropdowns initialized successfully');
-    } catch (error) {
-        console.error('Error initializing multi-select dropdowns:', error);
-    }
+        attemptInit();
+    });
 }
 
 function clearAllFilters() {
@@ -2198,13 +2206,16 @@ document.addEventListener("DOMContentLoaded", () => {
   
   // Load cached filter state and initialize multi-select dropdowns
   loadFilterState();
-  initMultiSelectDropdowns();
   
   const navWatchlist = document.getElementById("tab-watchlist");
   if (navWatchlist) {
     navWatchlist.innerHTML = '<i class="bi bi-eye"></i>';
   }
-  initializeFilters().then(async () => {
+  
+  // Initialize dropdowns first, then filters, then load data
+  initMultiSelectDropdowns().then(() => {
+    return initializeFilters();
+  }).then(async () => {
     if (activeTab === "search") {
       loadData(1);
     } else if (activeTab === "shuffle") {
@@ -2212,6 +2223,8 @@ document.addEventListener("DOMContentLoaded", () => {
     } else if (activeTab === "watchlist") {
       await loadWatchlist(1);
     }
+  }).catch(error => {
+    console.error('Error initializing filters:', error);
   });
   applySavedColumnWidths();
   makeTableResizable();
