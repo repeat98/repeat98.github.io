@@ -1603,35 +1603,7 @@ function applySavedColumnWidths() {
 }
 
 // ------------------ Sorting ------------------
-document.querySelectorAll("th[data-sort]").forEach((header) => {
-  header.addEventListener("click", () => {
-    const sortValue = header.getAttribute("data-sort");
-    const colName = header.getAttribute("data-column");
-    if (sortValue === "NO_SORT") return;
-    if (sortValue === "USER_RATING") {
-      if (sortConfig.key === "rating_coeff") {
-        sortConfig.order = sortConfig.order === "asc" ? "desc" : "asc";
-      } else {
-        sortConfig.key = "rating_coeff";
-        sortConfig.order = "desc";
-      }
-    } else {
-      if (sortConfig.key === sortValue) {
-        sortConfig.order = sortConfig.order === "asc" ? "desc" : "asc";
-      } else {
-        sortConfig.key = sortValue;
-        sortConfig.order = "asc";
-      }
-    }
-    localStorage.setItem("sortConfig", JSON.stringify(sortConfig));
-    if (activeTab === "watchlist") {
-      loadWatchlist(currentPage).catch(err => console.error("Sort error:", err));
-    } else {
-      loadData(currentPage);
-    }
-    updateSortIndicators();
-  });
-});
+// Moved inside DOMContentLoaded to ensure headers exist before attaching listeners
 
 function updateSortIndicators() {
   document.querySelectorAll("th[data-sort]").forEach((header) => {
@@ -2162,6 +2134,40 @@ function clearAllFilters() {
 
 // ------------------ Mobile Sorting Options ------------------
 document.addEventListener("DOMContentLoaded", () => {
+  // Load sortConfig from localStorage FIRST before setting up UI
+  sortConfig = JSON.parse(localStorage.getItem("sortConfig") || '{"key":"title","order":"asc"}');
+  
+  // Attach sorting event listeners to table headers
+  document.querySelectorAll("th[data-sort]").forEach((header) => {
+    header.addEventListener("click", () => {
+      const sortValue = header.getAttribute("data-sort");
+      const colName = header.getAttribute("data-column");
+      if (sortValue === "NO_SORT") return;
+      if (sortValue === "USER_RATING") {
+        if (sortConfig.key === "rating_coeff") {
+          sortConfig.order = sortConfig.order === "asc" ? "desc" : "asc";
+        } else {
+          sortConfig.key = "rating_coeff";
+          sortConfig.order = "desc";
+        }
+      } else {
+        if (sortConfig.key === sortValue) {
+          sortConfig.order = sortConfig.order === "asc" ? "desc" : "asc";
+        } else {
+          sortConfig.key = sortValue;
+          sortConfig.order = "asc";
+        }
+      }
+      localStorage.setItem("sortConfig", JSON.stringify(sortConfig));
+      if (activeTab === "watchlist") {
+        loadWatchlist(currentPage).catch(err => console.error("Sort error:", err));
+      } else {
+        loadData(currentPage);
+      }
+      updateSortIndicators();
+    });
+  });
+  
   const mobileSortSelect = document.getElementById("mobile-sort-select");
   const mobileSortToggle = document.getElementById("mobile-sort-toggle");
   if (mobileSortSelect) {
@@ -2194,7 +2200,6 @@ document.addEventListener("DOMContentLoaded", () => {
   loadFilterState();
   initMultiSelectDropdowns();
   
-  sortConfig = JSON.parse(localStorage.getItem("sortConfig") || '{"key":"title","order":"asc"}');
   const navWatchlist = document.getElementById("tab-watchlist");
   if (navWatchlist) {
     navWatchlist.innerHTML = '<i class="bi bi-eye"></i>';
