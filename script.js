@@ -278,19 +278,26 @@ async function fetchReleases({ page = 1, retryCount = 0 } = {}) {
     const hasGenreFilter = !allGenresSelected && selectedGenres.length > 0;
     const hasStyleFilter = !allStylesSelected && selectedStyles.length > 0;
     
-    if (hasGenreFilter && hasStyleFilter) {
-      // Both filters applied: use AND between genre and style, OR within each
-      const genreConditions = selectedGenres.map(genre => `genre.ilike.%${genre}%`).join(',');
-      const styleConditions = selectedStyles.map(style => `style.ilike.%${style}%`).join(',');
-      query = query.and(`or(${genreConditions}),or(${styleConditions})`);
-    } else if (hasGenreFilter) {
-      // Only genre filter
-      const genreConditions = selectedGenres.map(genre => `genre.ilike.%${genre}%`).join(',');
-      query = query.or(genreConditions);
-    } else if (hasStyleFilter) {
-      // Only style filter
-      const styleConditions = selectedStyles.map(style => `style.ilike.%${style}%`).join(',');
-      query = query.or(styleConditions);
+    if (hasGenreFilter || hasStyleFilter) {
+      // Build OR conditions for genres and styles
+      let orConditions = [];
+      
+      if (hasGenreFilter) {
+        selectedGenres.forEach(genre => {
+          orConditions.push(`genre.ilike.%${genre}%`);
+        });
+      }
+      
+      if (hasStyleFilter) {
+        selectedStyles.forEach(style => {
+          orConditions.push(`style.ilike.%${style}%`);
+        });
+      }
+      
+      // Apply all conditions with OR logic
+      if (orConditions.length > 0) {
+        query = query.or(orConditions.join(','));
+      }
     }
     
     if (yearMin !== -Infinity) query = query.gte("year", yearMin);
@@ -451,19 +458,26 @@ async function fetchShuffleReleases({ retryCount = 0 } = {}) {
     const hasGenreFilter = !allGenresSelected && selectedGenres.length > 0;
     const hasStyleFilter = !allStylesSelected && selectedStyles.length > 0;
     
-    if (hasGenreFilter && hasStyleFilter) {
-      // Both filters applied: use AND between genre and style, OR within each
-      const genreConditions = selectedGenres.map(genre => `genre.ilike.%${genre}%`).join(',');
-      const styleConditions = selectedStyles.map(style => `style.ilike.%${style}%`).join(',');
-      query = query.and(`or(${genreConditions}),or(${styleConditions})`);
-    } else if (hasGenreFilter) {
-      // Only genre filter
-      const genreConditions = selectedGenres.map(genre => `genre.ilike.%${genre}%`).join(',');
-      query = query.or(genreConditions);
-    } else if (hasStyleFilter) {
-      // Only style filter
-      const styleConditions = selectedStyles.map(style => `style.ilike.%${style}%`).join(',');
-      query = query.or(styleConditions);
+    if (hasGenreFilter || hasStyleFilter) {
+      // Build OR conditions for genres and styles
+      let orConditions = [];
+      
+      if (hasGenreFilter) {
+        selectedGenres.forEach(genre => {
+          orConditions.push(`genre.ilike.%${genre}%`);
+        });
+      }
+      
+      if (hasStyleFilter) {
+        selectedStyles.forEach(style => {
+          orConditions.push(`style.ilike.%${style}%`);
+        });
+      }
+      
+      // Apply all conditions with OR logic
+      if (orConditions.length > 0) {
+        query = query.or(orConditions.join(','));
+      }
     }
     
     if (yearMin !== -Infinity) query = query.gte("year", yearMin);
@@ -485,16 +499,24 @@ async function fetchShuffleReleases({ retryCount = 0 } = {}) {
     if (searchQuery) countOnlyQuery = countOnlyQuery.ilike("title", `%${searchQuery}%`);
     
     // Apply genre and style filters to count query with same logic
-    if (hasGenreFilter && hasStyleFilter) {
-      const genreConditions = selectedGenres.map(genre => `genre.ilike.%${genre}%`).join(',');
-      const styleConditions = selectedStyles.map(style => `style.ilike.%${style}%`).join(',');
-      countOnlyQuery = countOnlyQuery.and(`or(${genreConditions}),or(${styleConditions})`);
-    } else if (hasGenreFilter) {
-      const genreConditions = selectedGenres.map(genre => `genre.ilike.%${genre}%`).join(',');
-      countOnlyQuery = countOnlyQuery.or(genreConditions);
-    } else if (hasStyleFilter) {
-      const styleConditions = selectedStyles.map(style => `style.ilike.%${style}%`).join(',');
-      countOnlyQuery = countOnlyQuery.or(styleConditions);
+    if (hasGenreFilter || hasStyleFilter) {
+      let countOrConditions = [];
+      
+      if (hasGenreFilter) {
+        selectedGenres.forEach(genre => {
+          countOrConditions.push(`genre.ilike.%${genre}%`);
+        });
+      }
+      
+      if (hasStyleFilter) {
+        selectedStyles.forEach(style => {
+          countOrConditions.push(`style.ilike.%${style}%`);
+        });
+      }
+      
+      if (countOrConditions.length > 0) {
+        countOnlyQuery = countOnlyQuery.or(countOrConditions.join(','));
+      }
     }
     
     if (yearMin !== -Infinity) countOnlyQuery = countOnlyQuery.gte("year", yearMin);
