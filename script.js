@@ -284,13 +284,17 @@ async function fetchReleases({ page = 1, retryCount = 0 } = {}) {
       
       if (hasGenreFilter) {
         selectedGenres.forEach(genre => {
-          orConditions.push(`genre.ilike.%${genre}%`);
+          // Escape special characters for PostgREST
+          const escapedGenre = genre.replace(/[,()]/g, '');
+          orConditions.push(`genre.ilike.*${escapedGenre}*`);
         });
       }
       
       if (hasStyleFilter) {
         selectedStyles.forEach(style => {
-          orConditions.push(`style.ilike.%${style}%`);
+          // Escape special characters for PostgREST
+          const escapedStyle = style.replace(/[,()]/g, '');
+          orConditions.push(`style.ilike.*${escapedStyle}*`);
         });
       }
       
@@ -464,13 +468,17 @@ async function fetchShuffleReleases({ retryCount = 0 } = {}) {
       
       if (hasGenreFilter) {
         selectedGenres.forEach(genre => {
-          orConditions.push(`genre.ilike.%${genre}%`);
+          // Escape special characters for PostgREST
+          const escapedGenre = genre.replace(/[,()]/g, '');
+          orConditions.push(`genre.ilike.*${escapedGenre}*`);
         });
       }
       
       if (hasStyleFilter) {
         selectedStyles.forEach(style => {
-          orConditions.push(`style.ilike.%${style}%`);
+          // Escape special characters for PostgREST
+          const escapedStyle = style.replace(/[,()]/g, '');
+          orConditions.push(`style.ilike.*${escapedStyle}*`);
         });
       }
       
@@ -504,13 +512,17 @@ async function fetchShuffleReleases({ retryCount = 0 } = {}) {
       
       if (hasGenreFilter) {
         selectedGenres.forEach(genre => {
-          countOrConditions.push(`genre.ilike.%${genre}%`);
+          // Escape special characters for PostgREST
+          const escapedGenre = genre.replace(/[,()]/g, '');
+          countOrConditions.push(`genre.ilike.*${escapedGenre}*`);
         });
       }
       
       if (hasStyleFilter) {
         selectedStyles.forEach(style => {
-          countOrConditions.push(`style.ilike.%${style}%`);
+          // Escape special characters for PostgREST
+          const escapedStyle = style.replace(/[,()]/g, '');
+          countOrConditions.push(`style.ilike.*${escapedStyle}*`);
         });
       }
       
