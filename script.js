@@ -286,7 +286,7 @@ async function fetchReleases({ page = 1, retryCount = 0 } = {}) {
         selectedGenres.forEach(genre => {
           // Escape special characters for PostgREST
           const escapedGenre = genre.replace(/[,()]/g, '');
-          orConditions.push(`genre.ilike.*${escapedGenre}*`);
+          orConditions.push(`genre.ilike.%${escapedGenre}%`);
         });
       }
       
@@ -294,7 +294,7 @@ async function fetchReleases({ page = 1, retryCount = 0 } = {}) {
         selectedStyles.forEach(style => {
           // Escape special characters for PostgREST
           const escapedStyle = style.replace(/[,()]/g, '');
-          orConditions.push(`style.ilike.*${escapedStyle}*`);
+          orConditions.push(`style.ilike.%${escapedStyle}%`);
         });
       }
       
@@ -470,7 +470,7 @@ async function fetchShuffleReleases({ retryCount = 0 } = {}) {
         selectedGenres.forEach(genre => {
           // Escape special characters for PostgREST
           const escapedGenre = genre.replace(/[,()]/g, '');
-          orConditions.push(`genre.ilike.*${escapedGenre}*`);
+          orConditions.push(`genre.ilike.%${escapedGenre}%`);
         });
       }
       
@@ -478,7 +478,7 @@ async function fetchShuffleReleases({ retryCount = 0 } = {}) {
         selectedStyles.forEach(style => {
           // Escape special characters for PostgREST
           const escapedStyle = style.replace(/[,()]/g, '');
-          orConditions.push(`style.ilike.*${escapedStyle}*`);
+          orConditions.push(`style.ilike.%${escapedStyle}%`);
         });
       }
       
@@ -514,7 +514,7 @@ async function fetchShuffleReleases({ retryCount = 0 } = {}) {
         selectedGenres.forEach(genre => {
           // Escape special characters for PostgREST
           const escapedGenre = genre.replace(/[,()]/g, '');
-          countOrConditions.push(`genre.ilike.*${escapedGenre}*`);
+          countOrConditions.push(`genre.ilike.%${escapedGenre}%`);
         });
       }
       
@@ -522,7 +522,7 @@ async function fetchShuffleReleases({ retryCount = 0 } = {}) {
         selectedStyles.forEach(style => {
           // Escape special characters for PostgREST
           const escapedStyle = style.replace(/[,()]/g, '');
-          countOrConditions.push(`style.ilike.*${escapedStyle}*`);
+          countOrConditions.push(`style.ilike.%${escapedStyle}%`);
         });
       }
       
