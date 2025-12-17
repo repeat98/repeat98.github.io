@@ -237,7 +237,14 @@ async function fetchReleases({ page = 1, retryCount = 0 } = {}) {
   const querySignature = getQuerySignature(page);
   if (querySignature === lastQuerySignature && requestInProgress) {
     console.log("Duplicate request detected, skipping...");
-    return { data: filteredData, count: totalRecords };
+    // Don't return cached data - let the ongoing request complete
+    return null;
+  }
+  
+  // Clear cached data if this is a new query (different signature)
+  if (querySignature !== lastQuerySignature) {
+    filteredData = [];
+    totalRecords = 0;
   }
   
   lastQuerySignature = querySignature;
@@ -271,8 +278,9 @@ async function fetchReleases({ page = 1, retryCount = 0 } = {}) {
     
     // Only apply genre/style filters if not all are selected (optimization)
     // When all are selected, no filter is needed
-    const allGenresSelected = selectedGenres.length === 0 || selectedGenres.length === totalGenresCount;
-    const allStylesSelected = selectedStyles.length === 0 || selectedStyles.length === totalStylesCount;
+    // Also skip if counts aren't initialized yet (treat as "all selected" by default)
+    const allGenresSelected = selectedGenres.length === 0 || totalGenresCount === 0 || selectedGenres.length === totalGenresCount;
+    const allStylesSelected = selectedStyles.length === 0 || totalStylesCount === 0 || selectedStyles.length === totalStylesCount;
     
     // Build combined filter conditions
     const hasGenreFilter = !allGenresSelected && selectedGenres.length > 0;
@@ -286,7 +294,7 @@ async function fetchReleases({ page = 1, retryCount = 0 } = {}) {
         selectedGenres.forEach(genre => {
           // Escape special characters for PostgREST
           const escapedGenre = genre.replace(/[,()]/g, '');
-          orConditions.push(`genre.ilike.%${escapedGenre}%`);
+          orConditions.push(`genre.ilike.*${escapedGenre}*`);
         });
       }
       
@@ -294,7 +302,7 @@ async function fetchReleases({ page = 1, retryCount = 0 } = {}) {
         selectedStyles.forEach(style => {
           // Escape special characters for PostgREST
           const escapedStyle = style.replace(/[,()]/g, '');
-          orConditions.push(`style.ilike.%${escapedStyle}%`);
+          orConditions.push(`style.ilike.*${escapedStyle}*`);
         });
       }
       
@@ -345,6 +353,7 @@ async function fetchReleases({ page = 1, retryCount = 0 } = {}) {
       if (retryCount < MAX_RETRIES && isRetryableError) {
         const delay = RETRY_DELAYS[retryCount];
         console.log(`Retrying in ${delay}ms...`);
+        requestInProgress = false; // Reset flag before retry delay
         await new Promise(resolve => setTimeout(resolve, delay));
         return fetchReleases({ page, retryCount: retryCount + 1 });
       }
@@ -378,6 +387,7 @@ async function fetchReleases({ page = 1, retryCount = 0 } = {}) {
     if (retryCount < MAX_RETRIES) {
       const delay = RETRY_DELAYS[retryCount];
       console.log(`Retrying in ${delay}ms...`);
+      requestInProgress = false; // Reset flag before retry delay
       await new Promise(resolve => setTimeout(resolve, delay));
       return fetchReleases({ page, retryCount: retryCount + 1 });
     }
@@ -400,15 +410,15 @@ async function loadData(page = 1) {
   }
   
   try {
-    const { data, count } = await fetchReleases({ page });
+    const result = await fetchReleases({ page });
     
-    // Check if request was aborted
-    if (!data && !count) {
+    // Check if request was skipped (duplicate) or aborted
+    if (!result || (!result.data && !result.count)) {
       return;
     }
     
-    filteredData = data || [];
-    totalRecords = count || 0;
+    filteredData = result.data || [];
+    totalRecords = result.count || 0;
     totalPages = Math.ceil(totalRecords / pageSize) || 1;
     currentPage = page;
     renderTable();
@@ -455,8 +465,9 @@ async function fetchShuffleReleases({ retryCount = 0 } = {}) {
     }
     
     // Only apply genre/style filters if not all are selected (optimization)
-    const allGenresSelected = selectedGenres.length === 0 || selectedGenres.length === totalGenresCount;
-    const allStylesSelected = selectedStyles.length === 0 || selectedStyles.length === totalStylesCount;
+    // Also skip if counts aren't initialized yet (treat as "all selected" by default)
+    const allGenresSelected = selectedGenres.length === 0 || totalGenresCount === 0 || selectedGenres.length === totalGenresCount;
+    const allStylesSelected = selectedStyles.length === 0 || totalStylesCount === 0 || selectedStyles.length === totalStylesCount;
     
     // Build combined filter conditions
     const hasGenreFilter = !allGenresSelected && selectedGenres.length > 0;
@@ -470,7 +481,7 @@ async function fetchShuffleReleases({ retryCount = 0 } = {}) {
         selectedGenres.forEach(genre => {
           // Escape special characters for PostgREST
           const escapedGenre = genre.replace(/[,()]/g, '');
-          orConditions.push(`genre.ilike.%${escapedGenre}%`);
+          orConditions.push(`genre.ilike.*${escapedGenre}*`);
         });
       }
       
@@ -478,7 +489,7 @@ async function fetchShuffleReleases({ retryCount = 0 } = {}) {
         selectedStyles.forEach(style => {
           // Escape special characters for PostgREST
           const escapedStyle = style.replace(/[,()]/g, '');
-          orConditions.push(`style.ilike.%${escapedStyle}%`);
+          orConditions.push(`style.ilike.*${escapedStyle}*`);
         });
       }
       
